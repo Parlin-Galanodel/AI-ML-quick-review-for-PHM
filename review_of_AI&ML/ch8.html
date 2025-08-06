@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 8: Probabilistic Graphical Models | AI for the Physicist</title>
+    
+    <link rel="stylesheet" href="css/style.css">
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true},{left: '$', right: '$', display: false}]});"></script>
+
+    <!-- Mermaid.js for rendering diagrams -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({startOnLoad:true});</script>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <p><a href="index.html">← Back to Table of Contents</a></p>
+            <h2>Chapter 8: Probabilistic Graphical Models – The Language of Interacting Systems</h2>
+        </header>
+
+        <main>
+            <p>Physicists are experts at modeling systems of interacting components—from spins on a lattice to planets in a solar system. Probabilistic Graphical Models (PGMs) provide a general and powerful framework for representing and reasoning about such systems. They use a graph to represent the probabilistic relationships between a large number of random variables, allowing us to model complex, high-dimensional probability distributions in a structured and tractable way.</p>
+
+            <h4>8.1 Representing High-Dimensional Distributions with Graphs</h4>
+
+            <blockquote>
+                <p><strong>A Physicist's Motivation: Modeling a Magnet</strong></p>
+                <p>Imagine you want to create a complete statistical model of a simple 2D Ising model with just 10x10 = 100 spins. Each spin can be up (+1) or down (-1). The state of the entire system is a specific configuration of all 100 spins. How many possible configurations are there? There are $2^{100}$ states, a number far larger than the number of atoms in the universe. A complete description of the system's statistical behavior at a given temperature requires knowing the probability of every single one of these configurations. This is called the <strong>joint probability distribution</strong>, $P(s_1, s_2, \dots, s_{100})$.</p>
+                <p>Trying to write down this giant table of probabilities is utterly impossible. However, as a physicist, you know a secret: the system has structure! The interaction energy of a spin only depends on its immediate neighbors. The state of a spin at one corner of the lattice is not <em>directly</em> influenced by a spin at the opposite corner; the influence has to propagate through the chain of neighbors. This is a statement of <strong>conditional independence</strong>: the state of spin $s_i$ is independent of all other spins, <em>given the state of its immediate neighbors</em>.</p>
+                <p>This physical intuition—that interactions are local—is exactly what Probabilistic Graphical Models allow us to formalize and exploit. They provide a language for drawing a picture (a graph) of the interaction structure of a system and a mathematical toolkit for using that picture to break down the impossibly large joint probability distribution into a product of small, manageable, local pieces. This is the central theme of this chapter.</p>
+            </blockquote>
+            
+            <h5>The Challenge: The Curse of Dimensionality</h5>
+            <p>Let's formalize the problem. Imagine a system with $d$ binary variables, $X_1, \dots, X_d$. The total number of possible states of this system is $2^d$. To specify the joint probability distribution, $P(X_1, \dots, X_d)$, we must assign a probability to each of these states. Because the sum of all probabilities must equal 1, the number of independent parameters we need is <strong>$2^d - 1$</strong>. For even a small system of $d=30$ variables, this is over a billion parameters, which is computationally intractable to store and learn from data. This exponential scaling is a manifestation of the <strong>curse of dimensionality</strong>.</p>
+            
+            <h5>The Solution: Exploiting Conditional Independence</h5>
+            <p>The only way to escape this curse is to make simplifying assumptions about the structure of our probability distribution. The most powerful simplifying assumption we can make is <strong>conditional independence</strong>. In plain language, two variables, A and B, are conditionally independent given a third variable, C, if knowing C tells us everything we need to know about the relationship between A and B. Once we know C, learning something new about B doesn't tell us anything new about A.</p>
+            <p>For example, in a medical context:
+            <ul>
+                <li><strong>Symptom A:</strong> Fever</li>
+                <li><strong>Symptom B:</strong> Cough</li>
+                <li><strong>Disease C:</strong> Influenza</li>
+            </ul>
+            Fever and cough are correlated; patients with one often have the other. But this correlation is explained by the underlying disease. If we <em>know</em> a patient has influenza, then observing that they have a fever doesn't make us any more or less surprised to find they also have a cough (since both are common symptoms of the flu). We say that Fever and Cough are conditionally independent given Influenza.</p>
+            <p>Probabilistic Graphical Models(<strong>PGMs</strong>) are a framework for representing these conditional independence assumptions. A graph, made of nodes (variables) and edges (relationships), provides a visual and computationally efficient way to express the structure of a complex system. By assuming a certain graphical structure, we are implicitly stating which variables are conditionally independent of each other. This allows us to factorize the giant joint probability distribution into a product of small, local probability functions. There are two main "languages" or types of graphs for doing this.</p>
+
+            <h4>8.1 Representing High-Dimensional Distributions with Graphs</h4>
+            
+            <p>The core idea of PGMs is to exploit <strong>conditional independence</strong>. By identifying independence relationships, we can factorize the large joint distribution into a product of smaller, local functions. A graph provides a visual and computationally useful way to represent these factorizations.</p>
+
+            <h5>Directed Graphs (Bayesian Networks)</h5>
+            <p>A Bayesian Network represents a probability distribution using a <strong>Directed Acyclic Graph (DAG)</strong>. The structure of the DAG encodes a set of conditional independence assumptions: each variable is conditionally independent of its non-descendants, given its parents. This structure implies that the full joint probability can be factorized into a product of local conditional probabilities:</p>
+            $$ P(X_1, \dots, X_d) = \prod_{i=1}^d P(X_i | \text{Parents}(X_i)) $$
+            
+            <div class="figure">
+                <div class="mermaid">
+                    graph TD
+                        C(Cloudy) --> S(Sprinkler);
+                        C --> R(Rain);
+                        S --> W(Wet Grass);
+                        R --> W(Wet Grass);
+                </div>
+                <p class="caption"><b>Figure 8.1:</b> A simple Bayesian Network. The "Cloudy" variable influences "Rain" and "Sprinkler," which in turn both influence "Wet Grass." The joint probability factorizes as $P(C, S, R, W) = P(C) P(S|C) P(R|C) P(W|S,R)$.</p>
+            </div>
+			
+            <blockquote>
+                <p><strong>Detailed Derivation of the Factorization Formula</strong></p>
+                <p>Let's derive the formula $P(C, S, R, W) = P(C)P(S|C)P(R|C)P(W|S,R)$ from first principles. We will start with a universally true rule of probability and then apply the specific simplifying assumptions that the graph gives us.</p>
+                
+                <p><strong>Step 1: Start with the Chain Rule of Probability (The General Case)</strong></p>
+                <p>The chain rule is a fundamental identity that allows us to break down any joint probability distribution into a product of conditional probabilities. It is always true, for any set of variables, regardless of any graph structure. For our four variables, we can write it as:</p>
+                $$ P(C, S, R, W) = P(W | C, S, R) \times P(R | C, S) \times P(S | C) \times P(C) $$
+                <p>(Note: The chain rule works for any ordering of the variables. We've chosen an order that is convenient for our graph, starting from the "top"). This formula is still complex. For example, the term $P(W | C, S, R)$ would require a table specifying the probability of wet grass for every combination of cloudy, sprinkler, and rain.</p>
+
+                <p><strong>Step 2: Use the Graph to Find Conditional Independence Assumptions</strong></p>
+                <p>The arrows in the Bayesian Network are not just pretty lines; they are formal statements about conditional independence. The core rule is: <strong>"A node is conditionally independent of its non-descendants, given its parents."</strong> Let's apply this to each term in our chain rule:</p>
+                <ul>
+                    <li><strong>Term: $P(C)$</strong><br>
+                    The node C (Cloudy) has no parents. The rule doesn't simplify it further. It remains $P(C)$.</li>
+                    
+                    <li><strong>Term: $P(S | C)$</strong><br>
+                    The node S (Sprinkler) has one parent: C. The term already only conditions on its parent. So, this term also remains unchanged: $P(S|C)$.</li>
+                    
+                    <li><strong>Term: $P(R | C, S)$</strong><br>
+                    Here's our first simplification! Look at the graph. The parents of R (Rain) are just {C}. The node S is not a parent of R. According to the graph's rule, Rain is conditionally independent of Sprinkler, given Cloudy. Mathematically, this means:<br>
+                    $P(R | C, S) = P(R | C)$.<br>
+                    The complex term simplifies. Knowing the sprinkler's state gives us no extra information about rain if we already know whether it's cloudy.</li>
+                    
+                    <li><strong>Term: $P(W | C, S, R)$</strong><br>
+                    Here's our second simplification. Look at the graph. The parents of W (Wet Grass) are {S, R}. The node C is an "ancestor" but not a direct parent. The graph's rule tells us that Wet Grass is conditionally independent of Cloudy, given Sprinkler and Rain. Mathematically:<br>
+                    $P(W | C, S, R) = P(W | S, R)$.<br>
+                    The complex term simplifies. If we already know the state of the sprinkler and the rain (the direct causes), knowing whether it's cloudy provides no *additional* information about the state of the grass.</li>
+                </ul>
+
+                <p><strong>Step 3: Substitute the Simplified Terms Back into the Chain Rule</strong></p>
+                <p>Now we take our original, universally true chain rule equation and replace the complex terms with the simpler ones we derived from the graph:</p>
+                <p>Original: $P(C, S, R, W) = P(W | C, S, R) \times P(R | C, S) \times P(S | C) \times P(C)$</p>
+                <p>Substitute: $P(C, S, R, W) = \underbrace{P(W | S, R)}_{\text{Simplified}} \times \underbrace{P(R | C)}_{\text{Simplified}} \times P(S | C) \times P(C)$</p>
+                <p>Rearranging the terms into a more conventional order gives us the final factorization:</p>
+                $$ P(C, S, R, W) = P(C) P(S|C) P(R|C) P(W|S,R) $$
+                <p>This demonstrates that the simple factorization rule for Bayesian Networks is just a special case of the chain rule of probability, where the graph structure provides the specific conditional independencies that allow us to simplify the general formula into a compact and efficient product of local probabilities.</p>
+            </blockquote>
+
+            <p>This factorization is far more compact than the full joint table. Instead of specifying all $2^4-1=15$ probabilities, we only need to specify the small <strong>Conditional Probability Tables (CPTs)</strong> for each node, like $P(S|C)$, which might look like:</p>
+            <ul>
+                <li>$P(S=\text{on} | C=\text{true}) = 0.1$</li>
+                <li>$P(S=\text{on} | C=\text{false}) = 0.5$</li>
+            </ul>
+
+            <h5>Undirected Graphs (Markov Random Fields) and the Connection to Statistical Physics</h5>
+            <p>An Undirected Graphical Model, or <strong>Markov Random Field (MRF)</strong>, uses an undirected graph where edges indicate direct dependence without implied causality. This is ideal for modeling systems like spins on a lattice, where the interaction between neighbors is mutual.</p>
+			<p>The conditional independence properties of an MRF are very intuitive: a node is conditionally independent of all other nodes in the graph given its immediate neighbors. This set of neighbors is called the node's <strong>Markov Blanket</strong>. This rule is simple, but it doesn't immediately tell us how to write down a formula for the joint probability distribution $P(\mathbf{X})$.</p>
+            
+            <blockquote>
+                <p><strong>The Hammersley-Clifford Theorem: Bridging the Gap</strong></p>
+                <p>This is the central question the Hammersley-Clifford theorem answers: If we have a graph that defines a set of local independence rules (the Markov properties), what mathematical form must its global joint probability distribution take?</p>
+                <p>The theorem provides a powerful and elegant answer. It states that for any system whose probability distribution is positive everywhere ($P(\mathbf{x}) > 0$) and which respects the independence properties of an undirected graph, its joint probability distribution <strong>must</strong> be factorizable into a product of functions defined over the <strong>cliques</strong> of the graph.</p>
+
+                <p><strong>First, what is a Clique?</strong></p>
+                <p>A clique is a subset of nodes in the graph where every node is directly connected to every other node in the subset. They are the "fully connected" pockets within the graph.</p>
+                
+                            <div class="figure">
+                <div class="mermaid">
+                    graph TD
+                        A --- B
+                        B --- C
+                        C --- D
+                        D --- A
+                        B --- D
+                </div>
+                <p class="caption"><b>Figure 8.2:</b> A simple undirected graph. The sets {A,B}, {A,D}, {C,D} are cliques. The set {B,C,D} is also a clique. The set {B,D,A} is also a clique. A,B,C is not a clique as A and C are not connected.</p>
+				</div>
+
+                <p><strong>The Theorem's Formula</strong></p>
+                <p>The theorem states that the joint probability distribution must have this form:</p>
+                $$ P(X_1, \dots, X_d) = \prod_{C \in \text{cliques}} P(\mathbf{X}_C) = \frac{1}{Z} \prod_{C \in \text{cliques}} \phi_C(\mathbf{X}_C) $$
+                <p>Let's break down this crucial equation:</p>
+                <ul>
+                    <li>$\phi_C(\mathbf{X}_C)$: This is a <strong>potential function</strong> (or "factor") defined over a single clique $C$. It's a function that takes a specific configuration of the variables in that clique, $\mathbf{X}_C$, and assigns a non-negative number to it. You can think of this number as a "compatibility score" or "agreement score." A high value means the variables in that clique have a configuration that is "good" or "favorable."</li>
+                    <li>$\prod_{C \in \text{cliques}}$: This is a product over all the cliques in the graph. To get the total score for an entire system configuration, we multiply together the compatibility scores from all the local cliques.</li>
+                    <li>$Z$: This is the <strong>partition function</strong>. It's a normalization constant calculated by summing the product of potentials over <em>all possible configurations</em> of the entire system: $Z = \sum_{\mathbf{x}} \prod_C \phi_C(\mathbf{x}_C)$. Its role is to ensure that the final probabilities for all states sum to 1.</li>
+                </ul>
+            </blockquote>
+            <p>The factorization of an MRF leads to a profound and direct connection with <strong>statistical mechanics</strong>. The joint probability distribution is defined in terms of <strong>potential functions</strong> $\phi_C$ defined over <strong>cliques</strong> of the graph.</p>
+
+            <p>The <strong>Hammersley-Clifford theorem</strong> states that the joint probability can be written as a product of these potential functions over the maximal cliques of the graph:</p>
+            $$ P(X_1, \dots, X_d) = \frac{1}{Z} \prod_{C \in \text{cliques}} \phi_C(\mathbf{X}_C) $$
+            <p>where $Z$ is a normalization constant called the <strong>partition function</strong>. This is formally identical to the <strong>Boltzmann distribution</strong>. By defining the potentials in terms of an energy, $\phi_C(\mathbf{X}_C) = \exp(-E_C(\mathbf{X}_C)/T)$, we can write the joint probability as:</p>
+            $$ P(\mathbf{X}) = \frac{1}{Z} \exp \left( -\frac{1}{T} \sum_C E_C(\mathbf{X}_C) \right) = \frac{1}{Z} \exp \left( -\frac{E_{\text{total}}(\mathbf{X})}{T} \right) $$
+            
+            <blockquote>
+                <p><strong>Example: The Ising Model as an MRF</strong></p>
+                <p>Let's make this concrete. Consider the Ising Model for ferromagnetism on a lattice. The system's energy (Hamiltonian) is given by nearest-neighbor interactions and an external field:</p>
+                $$ E(\mathbf{s}) = -J \sum_{\langle i,j \rangle} s_i s_j - h \sum_i s_i $$
+                <p>We can map this directly to an MRF:</p>
+                <ul>
+                    <li><strong>Nodes:</strong> Each spin $s_i \in \{-1, +1\}$ is a node.</li>
+                    <li><strong>Graph:</strong> The lattice structure defines the edges (connections between nearest neighbors).</li>
+                    <li><strong>Cliques:</strong> The maximal cliques are the pairs of neighboring spins $\langle i,j \rangle$ and the individual spins $i$.</li>
+                    <li><strong>Energy Functions:</strong> For each edge clique, the energy is $E_{\langle i,j \rangle} = -J s_i s_j$. For each node clique, it is $E_i = -h s_i$.</li>
+                    <li><strong>Potential Functions:</strong> The potential for each clique is the exponentiated negative energy: $\phi_{\langle i,j \rangle} = e^{J s_i s_j / T}$ and $\phi_i = e^{h s_i / T}$.</li>
+                </ul>
+                <p>The total probability of a specific spin configuration $\mathbf{s}$ is given by the MRF formula:</p>
+                $$ P(\mathbf{s}) = \frac{1}{Z} \left( \prod_{\langle i,j \rangle} \phi_{\langle i,j \rangle} \right) \left( \prod_i \phi_i \right) = \frac{1}{Z} \left( \prod_{\langle i,j \rangle} e^{J s_i s_j/T} \right) \left( \prod_i e^{h s_i/T} \right) = \frac{1}{Z} e^{ \frac{1}{T} (J\sum s_i s_j + h\sum s_i) } = \frac{1}{Z} e^{-E(\mathbf{s})/T} $$
+                <p>This shows that the Boltzmann distribution is not just an analogy for an MRF—it *is* a specific instance of an MRF. This connection makes all the tools of statistical physics directly applicable to understanding these models.</p>
+            </blockquote>
+
+            <h4>8.2 Inference in Graphical Models</h4>
+            <p>Once a model is defined, we want to use it to answer questions. This is the task of <strong>inference</strong>. For many graphical structures, exact inference is computationally intractable because it requires computing the partition function $Z$, which involves a sum over an exponential number of states. This necessitates approximate inference methods.</p>
+
+            <h5>Variational Inference: A Mean-Field Approach</h5>
+            <p>This approach poses inference as an optimization problem. We approximate the true, intractable distribution $P$ with a simpler, tractable distribution $Q$. The key idea is to choose a family for $Q$ that is easy to work with, for example, a fully factorized distribution: $Q(\mathbf{X}) = \prod_i Q_i(X_i)$.</p>
+            <p>We then find the parameters of $Q$ that minimize the KL divergence $D_{\text{KL}}(Q||P)$. This is the machine learning equivalent of <strong>mean-field theory</strong>. In mean-field theory, we approximate a complex interacting system (where every spin feels the individual field from its neighbors) with a simpler, non-interacting system where each spin feels a single, averaged "mean field" from all the others. The factorized form of $Q$ is precisely this non-interacting approximation. Minimizing the KL divergence is analogous to minimizing the variational free energy to find the best possible mean-field approximation.</p>
+
+            <h5>Sampling Methods (MCMC): Simulating the System</h5>
+            <p>Instead of approximating the distribution analytically, we can draw samples from it using <strong>Markov Chain Monte Carlo (MCMC)</strong> methods. This is exactly how physicists use Monte Carlo methods to simulate and measure observables in complex systems.</p>
+            <p><strong>Gibbs sampling</strong> is a classic MCMC technique perfectly suited for graphical models. It works by iteratively sampling each variable one at a time from its conditional distribution given the current values of all other variables in the model. For an MRF, this conditional distribution is easy to compute as it only depends on the variable's immediate neighbors (its <strong>Markov blanket</strong>).</p>
+            <blockquote>
+                <p><strong>Gibbs Sampling for the Ising Model: A Step-by-Step Workflow</strong></p>
+                <ol>
+                    <li><strong>Initialize:</strong> Start with a random configuration of all spins on the lattice.</li>
+                    <li><strong>Iterate:</strong> Repeat the following for many steps to allow the system to reach equilibrium:
+                        <ol type="a">
+                            <li><strong>Pick a spin:</strong> Choose a single spin $s_i$ at random from the lattice.</li>
+                            <li><strong>Calculate its conditional probability:</strong> The probability of this spin being "up" ($s_i=+1$) depends only on the current state of its neighbors. This can be derived from the Boltzmann distribution and takes the form of a sigmoid function!</li>
+                            $$ P(s_i = +1 | \text{neighbors}) = \sigma \left( \frac{2}{T} (J \sum_{j \in \text{neighbors}(i)} s_j + h) \right) $$
+                            <li><strong>Sample its new state:</strong> Draw a random number $u$ from a uniform distribution [0,1]. If $u < P(s_i=+1|\text{neighbors})$, set the new state of $s_i$ to +1. Otherwise, set it to -1.</li>
+                        </ol>
+                    </li>
+                    <li><strong>Collect Samples:</strong> After an initial "burn-in" period, start collecting the configurations of the system at each step. This collection of samples is an approximation of the true Boltzmann distribution, and we can use it to calculate macroscopic observables like the average magnetization.</li>
+                </ol>
+            </blockquote>
+        </main>
+        
+        <hr>
+        
+        <nav class="navigation-links" style="display: flex; justify-content: space-between;">
+            <a href="ch7.html">← Chapter 7</a>
+            <a href="ch9.html">Chapter 9: Graph Neural Networks →</a>
+        </nav>
+    </div>
+
+</body>
+</html>

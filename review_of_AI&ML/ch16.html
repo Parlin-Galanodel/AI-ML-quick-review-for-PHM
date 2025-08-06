@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 16: Variational Autoencoders | AI for the Physicist</title>
+    
+    <link rel="stylesheet" href="css/style.css">
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true},{left: '$', right: '$', display: false}]});"></script>
+
+    <!-- Mermaid.js for rendering diagrams -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({startOnLoad:true});</script>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <p><a href="index.html">← Back to Table of Contents</a></p>
+            <h2>Chapter 16: Variational Autoencoders (VAEs) – A Variational Free Energy Approach</h2>
+        </header>
+
+        <main>
+            <p>Generative models represent a pinnacle of unsupervised learning. Their ambitious goal is to learn the underlying probability distribution $p(\mathbf{x})$ of a dataset so thoroughly that they can <strong>generate new, synthetic data samples</strong> that are indistinguishable from the real data, instead of giving out probility of an output with respect to some input (the discriminative models we encountered previously). For a physicist, this is the ultimate test of understanding a system: if you can simulate its statistical behavior perfectly, you understand its underlying laws.</p>
+            <h4>16.1 From Autoencoders to Variational Autoencoders</h4>
+            <p>To understand a VAE, we must first understand a standard <strong>autoencoder</strong>. A standard autoencoder is a simple neural network used for data compression and feature learning. It consists of two parts:</p>
+            <ul>
+                <li>An <strong>Encoder</strong> that takes a high-dimensional input $\mathbf{x}$ and compresses it into a low-dimensional latent vector $\mathbf{z}$.</li>
+                <li>A <strong>Decoder</strong> that takes the latent vector $\mathbf{z}$ and tries to reconstruct the original input $\mathbf{x}$.</li>
+            </ul>
+            <p>It is trained simply by minimizing the reconstruction error (e.g., MSE) between the original input and the output. However, a standard autoencoder is <em>not</em> generative. Its latent space is not structured; if you pick a random point $\mathbf{z}$ from the latent space and feed it to the decoder, it will likely produce garbage. The VAE solves this by introducing a probabilistic spin on this architecture.</p>
+            
+            <p>A <strong>Variational Autoencoder (VAE)</strong> is a probabilistic generative model. It also has an encoder-decoder structure, but with a crucial difference:</p>
+            <ul>
+                <li>The <strong>Encoder</strong> ($q_\phi(\mathbf{z}|\mathbf{x})$) maps an input $\mathbf{x}$ not to a single point, but to a <em>probability distribution</em> over the latent space. This distribution is typically a simple Gaussian, so the encoder outputs a mean vector $\boldsymbol{\mu}$ and a variance vector $\boldsymbol{\sigma}^2$.</li>
+                <li>The <strong>Decoder</strong> ($p_\theta(\mathbf{x}|\mathbf{z})$) takes a point $\mathbf{z}$ sampled from that latent distribution and reconstructs the original data point $\mathbf{x}$.</li>
+            </ul>
+            <p>This probabilistic encoding is the key. It forces the latent space to be continuous and well-structured, which is what allows us to generate new data.</p>
+            
+<h4>16.2 The Evidence Lower Bound (ELBO): A Variational Free Energy</h4>
+            <p>The training objective of a VAE is to maximize the log-likelihood of the data, $\log p(\mathbf{x})$. We can write this by marginalizing over the latent variables $\mathbf{z}$ with a simple prior, $p(\mathbf{z})$, which is typically a standard normal distribution $\mathcal{N}(0, \mathbf{I})$:</p>
+            $$ p(\mathbf{x}) = \int p_\theta(\mathbf{x}|\mathbf{z}) p(\mathbf{z}) d\mathbf{z} $$
+            <p>This integral is intractable. The core idea of variational inference is to approximate the true (but intractable) posterior distribution $p_\theta(\mathbf{z}|\mathbf{x})$ with our simpler, learnable encoder distribution $q_\phi(\mathbf{z}|\mathbf{x})$. We want to make our approximation $q$ as close as possible to the true posterior $p$. The "distance" is measured by the KL divergence.</p>
+            
+            <blockquote>
+                <p><strong>The Full Derivation of the ELBO</strong></p>
+                <p>We start with the KL divergence between our approximation $q$ and the true posterior $p$, which we want to minimize:</p>
+                $$ D_{\text{KL}}(q_\phi(\mathbf{z}|\mathbf{x}) || p_\theta(\mathbf{z}|\mathbf{x})) = \int q_\phi(\mathbf{z}|\mathbf{x}) \log \frac{q_\phi(\mathbf{z}|\mathbf{x})}{p_\theta(\mathbf{z}|\mathbf{x})} d\mathbf{z} $$
+                <p>We use Bayes' rule to rewrite the true posterior: $p_\theta(\mathbf{z}|\mathbf{x}) = \frac{p_\theta(\mathbf{x}|\mathbf{z})p(\mathbf{z})}{p_\theta(\mathbf{x})}$. Substituting this into the KL divergence:</p>
+                $$ = \int q_\phi(\mathbf{z}|\mathbf{x}) \log \left( \frac{q_\phi(\mathbf{z}|\mathbf{x}) p_\theta(\mathbf{x})}{p_\theta(\mathbf{x}|\mathbf{z})p(\mathbf{z})} \right) d\mathbf{z} $$
+                <p>Using the properties of logarithms to split the fraction:</p>
+                $$ = \int q_\phi(\dots) \left[ \log q_\phi(\dots) - \log p_\theta(\mathbf{x}|\mathbf{z}) - \log p(\mathbf{z}) + \log p_\theta(\mathbf{x}) \right] d\mathbf{z} $$
+                <p>Now, we can separate the terms. Note that $\log p_\theta(\mathbf{x})$ is a constant with respect to $\mathbf{z}$, so it can be pulled out of the integral, and $\int q_\phi(\mathbf{z}|\mathbf{x}) d\mathbf{z} = 1$.</p>
+                $$ = \int q_\phi(\dots) \log \frac{q_\phi(\dots)}{p(\mathbf{z})} d\mathbf{z} - \int q_\phi(\dots) \log p_\theta(\mathbf{x}|\mathbf{z}) d\mathbf{z} + \log p_\theta(\mathbf{x}) $$
+                <p>Recognizing the definitions of KL divergence and expectation, we get:</p>
+                $$ D_{\text{KL}}(q_\phi || p_\theta) = D_{\text{KL}}(q_\phi || p) - \mathbb{E}_{\mathbf{z}\sim q_\phi}[\log p_\theta(\mathbf{x}|\mathbf{z})] + \log p_\theta(\mathbf{x}) $$
+                <p>Finally, we rearrange this equation to isolate the term we want to maximize, the log-likelihood $\log p_\theta(\mathbf{x})$:</p>
+                $$ \log p_\theta(\mathbf{x}) - D_{\text{KL}}(q_\phi || p_\theta) = \mathbb{E}_{\mathbf{z}\sim q_\phi}[\log p_\theta(\mathbf{x}|\mathbf{z})] - D_{\text{KL}}(q_\phi(\mathbf{z}|\mathbf{x}) || p(\mathbf{z})) $$
+                <p>The term on the right is the <strong>Evidence Lower Bound (ELBO)</strong>. Since the KL term on the left is always $\ge 0$, the ELBO is always a lower bound on the true log-likelihood. Maximizing the ELBO is therefore our objective.</p>
+            </blockquote>
+            
+            <p>The ELBO loss function has two terms that are beautifully analogous to the minimization of <strong>variational free energy</strong>, $F = E - TS$:</p>
+            $$ \mathcal{L}_{\text{ELBO}} = \underbrace{\mathbb{E}_{\mathbf{z}\sim q_\phi}[\log p_\theta(\mathbf{x}|\mathbf{z})]}_{\text{Reconstruction Term}} - \underbrace{D_{\text{KL}}(q_\phi || p)}_{\text{Regularizer}} $$
+            <ol>
+                <li><strong>Reconstruction Term (Minimizing Energy):</strong> This term forces the decoder to be good at reconstructing the data. Maximizing this is equivalent to minimizing reconstruction error. This corresponds to finding a low-<strong>Energy ($E$)</strong> configuration. A good reconstruction is a low-energy state.</li>
+                <li><strong>KL Divergence / Regularizer (Maximizing Entropy):</strong> This term forces the encoder to produce latent distributions that are close to our simple prior (a standard normal distribution). This regularizes the latent space, forcing it to be a well-behaved, continuous cloud of points centered at the origin. This corresponds to maximizing the system's <strong>Entropy ($S$)</strong>. It prevents the model from "cheating" by assigning each data point to a tiny, distinct region of the latent space.</li>
+            </ol>
+            
+            <blockquote>
+                <p><strong>A Worked Analogy: Modeling a Gas in a Box</strong></p>
+                <p>Imagine your data $\mathbf{x}$ is a snapshot of the positions of all atoms in a box of gas. The latent variable $\mathbf{z}$ could represent the macroscopic state variables: Temperature and Pressure, $\mathbf{z} = (T, P)$.</p>
+                <ul>
+                    <li>The <strong>Decoder $p_\theta(\mathbf{x}|\mathbf{z})$</strong> is your simulator. Given a temperature and pressure, it should be able to generate a plausible configuration of atoms $\mathbf{x}$. The <strong>Reconstruction Term</strong> trains this simulator to be physically accurate.</li>
+                    <li>The <strong>Encoder $q_\phi(\mathbf{z}|\mathbf{x})$</strong> is your measurement device. Given a snapshot of atoms, it should infer the most likely Temperature and Pressure.</li>
+                    <li>The <strong>Prior $p(\mathbf{z})$</strong> is your prior belief about the macroscopic state. You might assume the gas is at room temperature and standard pressure, so your prior is a Gaussian centered there.</li>
+                    <li>The <strong>KL Divergence Term</strong> then acts as a regularizer. It forces your measurement device (the Encoder) to map the observed microstates into a distribution of macrostates that is consistent with your prior beliefs about the system. It ensures your latent space is well-behaved and doesn't invent wildly implausible temperatures or pressures.</li>
+                </ul>
+                <p>Maximizing the ELBO trains the simulator and the measurement device together to form a self-consistent model of the physical system, balanced between accurately describing the microstates and maintaining a regular, physically plausible space of macrostates.</p>
+            </blockquote>
+
+            <h4>16.3 The Reparameterization Trick: Enabling Gradient Flow</h4>
+            <p>A key challenge in training is that the sampling step, $\mathbf{z} \sim q_\phi(\mathbf{z}|\mathbf{x})$, is stochastic. We cannot backpropagate gradients through a random node. The <strong>reparameterization trick</strong> solves this. Instead of sampling directly from $\mathcal{N}(\boldsymbol{\mu}, \boldsymbol{\sigma}^2)$, we first draw random noise $\boldsymbol{\epsilon}$ from a fixed, parameter-free distribution $\mathcal{N}(0, \mathbf{I})$. Then, we compute the latent vector deterministically:</p>
+            $$ \mathbf{z} = \boldsymbol{\mu} + \boldsymbol{\sigma} \odot \boldsymbol{\epsilon} $$
+            <p>This simple change moves the source of stochasticity "out of the way." The path from the encoder's parameters $\phi$ to the outputs $\boldsymbol{\mu}$ and $\boldsymbol{\sigma}$, and then to the latent vector $\mathbf{z}$, is now fully deterministic. Gradients can now flow uninterrupted from the loss function all the way back to the encoder's parameters.</p>
+        </main>
+        
+        <hr>
+        
+        <nav class="navigation-links" style="display: flex; justify-content: space-between;">
+            <a href="ch15.html">← Chapter 15</a>
+            <a href="ch17.html">Chapter 17: Generative Adversarial Networks →</a>
+        </nav>
+    </div>
+
+</body>
+</html>

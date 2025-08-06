@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 4: Linear Models and Regularization | AI for the Physicist</title>
+    
+    <link rel="stylesheet" href="css/style.css">
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true},{left: '$', right: '$', display: false}]});"></script>
+
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <p><a href="index.html">← Back to Table of Contents</a></p>
+            <h2>Chapter 4: Linear Models and the Power of Regularization</h2>
+        </header>
+
+        <main>
+            <p>This chapter introduces the simplest class of models, linear models, framing them as the "harmonic approximation" of machine learning—a powerful and often sufficient description for systems near an equilibrium point. Just as any smooth potential can be locally approximated by a parabola, many complex relationships can be locally approximated by a line or a hyperplane.</p>
+
+            <h4>4.1 Linear Regression: The Harmonic Approximation</h4>
+            <p>Linear regression models the relationship between a set of input variables (features) $\mathbf{x} \in \mathbb{R}^d$ and a continuous output variable $y \in \mathbb{R}$ as a linear function:</p>
+            $$ \hat{y} = f_{\mathbf{w},b}(\mathbf{x}) = \mathbf{w}^T \mathbf{x} + b = w_1 x_1 + w_2 x_2 + \dots + w_d x_d + b $$
+            <p>where $\mathbf{w} \in \mathbb{R}^d$ is a vector of weights and $b \in \mathbb{R}$ is a scalar bias term (or intercept). This is the quintessential "best-fit line" problem, generalized to a best-fit hyperplane in higher dimensions.</p>
+
+            <h5>Probabilistic Interpretation and the Loss Function</h5>
+            <p>The standard method for fitting this model is <strong>least squares</strong>, which minimizes the sum of squared residuals (RSS) between the predictions $\hat{y}_i$ and the true values $y_i$. The corresponding loss function is the <strong>Mean Squared Error (MSE)</strong>:</p>
+            $$ \mathcal{L}(\mathbf{w}, b) = \frac{1}{N} \sum_{i=1}^{N} (y_i - \hat{y}_i)^2 = \frac{1}{N} \sum_{i=1}^{N} (y_i - (\mathbf{w}^T \mathbf{x}_i + b))^2 $$
+            <p>The ubiquitous use of this loss function is not arbitrary. It arises directly from the principle of <strong>Maximum Likelihood Estimation (MLE)</strong> under a specific physical assumption: that the data is generated from a true linear model, but our measurements of the output are corrupted by additive, independent, and identically distributed (i.i.d.) <strong>Gaussian noise</strong>.</p>
+            <p>Let's formalize this. We assume the true relationship is $y_i = (\mathbf{w}_{\text{true}}^T \mathbf{x}_i + b_{\text{true}}) + \epsilon_i$, where the noise term $\epsilon_i$ is drawn from a normal distribution with zero mean and constant variance $\sigma^2$, i.e., $\epsilon_i \sim \mathcal{N}(0, \sigma^2)$. This means the conditional probability of observing $y_i$ given $\mathbf{x}_i$ and the model parameters is:</p>
+            $$ p(y_i | \mathbf{x}_i; \mathbf{w}, b) = \mathcal{N}(y_i | \mathbf{w}^T\mathbf{x}_i + b, \sigma^2) = \frac{1}{\sqrt{2\pi\sigma^2}} \exp\left( -\frac{(y_i - (\mathbf{w}^T\mathbf{x}_i + b))^2}{2\sigma^2} \right) $$
+            <p>The log-likelihood for the entire dataset (assuming i.i.d. samples) is:</p>
+            $$ \ell(\mathbf{w}, b) = \log \prod_{i=1}^N p(y_i | \mathbf{x}_i; \mathbf{w}, b) = \sum_{i=1}^N \log p(y_i | \mathbf{x}_i; \mathbf{w}, b) $$
+            $$ = \sum_{i=1}^N \left[ \log\left(\frac{1}{\sqrt{2\pi\sigma^2}}\right) - \frac{(y_i - (\mathbf{w}^T\mathbf{x}_i + b))^2}{2\sigma^2} \right] $$
+            <p>To find the MLE estimate for $\mathbf{w}$ and $b$, we maximize this log-likelihood. The first term, $\log\left(\frac{1}{\sqrt{2\pi\sigma^2}}\right)$, and the denominator $2\sigma^2$ are constants with respect to the parameters. Maximizing the expression is therefore equivalent to <strong>minimizing</strong> the sum of squared errors term:</p>
+            $$ \arg\max_{\mathbf{w}, b} \ell(\mathbf{w}, b) = \arg\min_{\mathbf{w}, b} \sum_{i=1}^N (y_i - (\mathbf{w}^T\mathbf{x}_i + b))^2 $$
+            <p>This provides a rigorous probabilistic justification for the least squares method, grounding it in a physical model of Gaussian measurement error.</p>
+
+            <h5>The Normal Equations: The Bottom of the Potential Well</h5>
+            <p>The loss function for linear regression is a quadratic function of the parameters $\mathbf{w}$ and $b$. This means the potential energy landscape, $\mathcal{L}(\mathbf{w}, b)$, is a perfect, convex paraboloid. It has a single global minimum. We can find this minimum analytically by setting the gradient of the loss function to zero, $\nabla_{\mathbf{w},b} \mathcal{L} = \mathbf{0}$.</p>
+            <p>To simplify the derivation, we absorb the bias term $b$ into the weight vector $\mathbf{w}$ by augmenting each input vector $\mathbf{x}_i$ with a constant feature of 1. Let $\tilde{\mathbf{x}}_i = [1, x_{i1}, \dots, x_{id}]^T$ and $\tilde{\mathbf{w}} = [b, w_1, \dots, w_d]^T$. Then the model is $\hat{y}_i = \tilde{\mathbf{w}}^T \tilde{\mathbf{x}}_i$. We assemble our data into a <strong>design matrix</strong> $\mathbf{X}$ of size $N \times (d+1)$, where each row is an augmented sample $\tilde{\mathbf{x}}_i^T$. Let $\mathbf{y}$ be the $N \times 1$ column vector of true outputs. The loss function can now be written in a compact matrix form:</p>
+            $$ \mathcal{L}(\tilde{\mathbf{w}}) = \frac{1}{N} ||\mathbf{y} - \mathbf{X}\tilde{\mathbf{w}}||^2 = \frac{1}{N} (\mathbf{y} - \mathbf{X}\tilde{\mathbf{w}})^T (\mathbf{y} - \mathbf{X}\tilde{\mathbf{w}}) $$
+            <p>Expanding this, we get:</p>
+            $$ \mathcal{L}(\tilde{\mathbf{w}}) = \frac{1}{N} (\mathbf{y}^T\mathbf{y} - \mathbf{y}^T\mathbf{X}\tilde{\mathbf{w}} - \tilde{\mathbf{w}}^T\mathbf{X}^T\mathbf{y} + \tilde{\mathbf{w}}^T\mathbf{X}^T\mathbf{X}\tilde{\mathbf{w}}) $$
+            <p>Since $\tilde{\mathbf{w}}^T\mathbf{X}^T\mathbf{y}$ is a scalar, it is equal to its own transpose, $(\tilde{\mathbf{w}}^T\mathbf{X}^T\mathbf{y})^T = \mathbf{y}^T\mathbf{X}\tilde{\mathbf{w}}$. So we can combine the middle terms:</p>
+            $$ \mathcal{L}(\tilde{\mathbf{w}}) = \frac{1}{N} (\mathbf{y}^T\mathbf{y} - 2\tilde{\mathbf{w}}^T\mathbf{X}^T\mathbf{y} + \tilde{\mathbf{w}}^T\mathbf{X}^T\mathbf{X}\tilde{\mathbf{w}}) $$
+            <p>Now we take the gradient with respect to $\tilde{\mathbf{w}}$. Using the standard matrix calculus identities $\nabla_{\mathbf{v}}(\mathbf{a}^T\mathbf{v}) = \mathbf{a}$ and $\nabla_{\mathbf{v}}(\mathbf{v}^T\mathbf{M}\mathbf{v}) = 2\mathbf{M}\mathbf{v}$ for symmetric $\mathbf{M}$ (note that $\mathbf{X}^T\mathbf{X}$ is symmetric), we get:</p>
+            $$ \nabla_{\tilde{\mathbf{w}}} \mathcal{L} = \frac{1}{N} (-2\mathbf{X}^T\mathbf{y} + 2\mathbf{X}^T\mathbf{X}\tilde{\mathbf{w}}) $$
+            <p>Setting the gradient to zero to find the minimum:</p>
+            $$ -2\mathbf{X}^T\mathbf{y} + 2\mathbf{X}^T\mathbf{X}\tilde{\mathbf{w}} = \mathbf{0} \quad \implies \quad \mathbf{X}^T\mathbf{X}\tilde{\mathbf{w}} = \mathbf{X}^T\mathbf{y} $$
+            <p>This system of linear equations is known as the <strong>normal equations</strong>. If the matrix $\mathbf{X}^T\mathbf{X}$ is invertible (which is true if the features are linearly independent), we can solve for the optimal weight vector $\tilde{\mathbf{w}}^*$ directly:</p>
+            $$ \tilde{\mathbf{w}}^* = (\mathbf{X}^T\mathbf{X})^{-1} \mathbf{X}^T\mathbf{y} $$
+            <p>This closed-form solution corresponds to finding the exact bottom of the quadratic potential well defined by the loss function.</p>
+
+            <h4>4.2 Logistic Regression: A Statistical Mechanics Approach to Classification</h4>
+            <p>For <strong>classification</strong> problems, where the output is a discrete category (e.g., spin up/down, phase A/B), we need to model the <em>probability</em> of an outcome. Logistic regression is the canonical linear model for binary classification, where $y \in \{0, 1\}$.</p>
+            
+            <h5>The Sigmoid Function: From Energy Gap to Probability</h5>
+            <p>Logistic regression first computes a linear "score" or "evidence" $z = \mathbf{w}^T \mathbf{x} + b$. To turn this score, which can be any real number, into a probability in the range $[0,1]$, it is passed through the <strong>sigmoid</strong> (or logistic) function:</p>
+            $$ P(\hat{y}=1 | \mathbf{x}) = \sigma(z) = \frac{1}{1 + e^{-z}} $$
+            <p>The formal identity between this function and the Fermi-Dirac distribution is not a mere coincidence; it arises because both systems are describing the probability of occupying one of two mutually exclusive states.</p>
+
+            <blockquote>
+                <p><strong>Physical Intuition: A Two-Level System</strong></p>
+                <p>Imagine a simple quantum system with two energy levels: a ground state $E_0$ (which we'll associate with Class 0) and an excited state $E_1$ (associated with Class 1). A data point can only be in one of these two states. This is the essence of a fermionic system where a state can be either empty or occupied by a single particle—it cannot be multiply occupied. This aligns perfectly with binary classification, where an example belongs to Class 1 <em>or</em> Class 0, but not both.</p>
+                <p>In statistical mechanics, the ratio of probabilities of finding the system in these two states at temperature $T$ is given by the ratio of their Boltzmann factors:</p>
+                $$ \frac{P(\text{state 1})}{P(\text{state 0})} = \frac{e^{-E_1/k_BT}}{e^{-E_0/k_BT}} = e^{-(E_1 - E_0)/k_BT} = e^{-\Delta E/k_BT} $$
+                <p>This ratio is the <strong>odds</strong> of being in state 1. Now, let's connect this to our logistic regression model. The linear part, $z = \mathbf{w}^T\mathbf{x} + b$, represents the evidence for Class 1. We can make the analogy that this evidence is the negative of the energy gap, scaled by temperature: $z = -\Delta E/k_BT$. A large, positive $z$ (strong evidence for Class 1) corresponds to a large negative energy gap $\Delta E$, meaning state 1 is a much lower energy state and thus more probable.</p>
+                <p>Since the probabilities must sum to one, $P(\text{state 1}) + P(\text{state 0}) = 1$, we can solve for the probability of being in state 1:</p>
+                $$ P_1 = (1 - P_1) e^{-\Delta E/k_BT} \implies P_1 (1 + e^{-\Delta E/k_BT}) = e^{-\Delta E/k_BT} $$
+                $$ P_1 = \frac{e^{-\Delta E/k_BT}}{1 + e^{-\Delta E/k_BT}} = \frac{1}{e^{\Delta E/k_BT} + 1} $$
+                <p>Substituting our analogy $z = -\Delta E/k_BT$, we get:</p>
+                $$ P_1 = \frac{1}{e^{-z} + 1} $$
+                <p>This is precisely the sigmoid function. So, the sigmoid function arises naturally from the statistical mechanics of a simple two-level system, which is the perfect physical analog for a binary choice.</p>
+                <p><strong>Why not Bose-Einstein?</strong> The Bose-Einstein distribution describes the number of indistinguishable bosons that can occupy a given energy state. Since any number of bosons can occupy the same state, it is used for systems where the outcome is a count (0, 1, 2, 3,...), not a binary choice. The corresponding machine learning model would be something like Poisson regression, not logistic regression.</p>
+            </blockquote>
+
+            <h5>Maximum Likelihood Training and Cross-Entropy Loss</h5>
+            <p>The parameters of the logistic regression model are trained using Maximum Likelihood Estimation. Let $p_i = P(\hat{y}_i=1 | \mathbf{x}_i) = \sigma(\mathbf{w}^T\mathbf{x}_i + b)$. We can write the probability of observing a single correct label $y_i \in \{0,1\}$ in a compact form known as the Bernoulli likelihood:</p>
+            $$ p(y_i | \mathbf{x}_i; \mathbf{w},b) = p_i^{y_i} (1 - p_i)^{1-y_i} $$
+            <p>The log-likelihood for the entire dataset is:</p>
+            $$ \ell(\mathbf{w}, b) = \sum_{i=1}^N \log \left( p_i^{y_i} (1 - p_i)^{1-y_i} \right) = \sum_{i=1}^N \left[ y_i \log p_i + (1-y_i) \log(1-p_i) \right] $$
+            <p>Maximizing this log-likelihood is the training objective. It is conventional in machine learning to minimize a loss function, so we simply take the negative of the log-likelihood. The average negative log-likelihood is called the <strong>binary cross-entropy loss</strong>:</p>
+            $$ \mathcal{L}_{BCE}(\mathbf{w},b) = -\frac{1}{N} \sum_{i=1}^N \left[ y_i \log p_i + (1-y_i) \log(1-p_i) \right] $$
+            <p>This loss function is the information-theoretic measure of the "distance" (specifically, the KL divergence) between the true distribution of labels and the model's predicted probability distribution. Minimizing this loss forces the model's predicted probabilities to align with the empirical frequencies in the data. Unlike linear regression, there is no closed-form solution for the weights, but the loss function is convex, so the optimal weights can be found reliably using gradient-based optimization.</p>
+			            <blockquote>
+                <p><strong>Step-by-Step Derivation of the Cross-Entropy Loss</strong></p>
+                <p>Let's start by thinking about a single training example $(\mathbf{x}_i, y_i)$. Our model, using the sigmoid function, calculates the probability that the class is 1:</p>
+                $$ p_i = P(\hat{y}_i=1 | \mathbf{x}_i) = \sigma(\mathbf{w}^T\mathbf{x}_i + b) $$
+                <p>Since there are only two classes, the probability of the class being 0 is necessarily:</p>
+                $$ 1 - p_i = P(\hat{y}_i=0 | \mathbf{x}_i) $$
+
+                <p>Now, let's consider the two possible cases for the true label $y_i$:</p>
+                
+                <p><strong>Case 1: The true label is $y_i = 1$.</strong><br>
+                For our model to be "good," it should have assigned a high probability to this outcome. The likelihood of observing this specific data point is simply $p_i$. To maximize the likelihood, we want to maximize $p_i$.</p>
+                
+                <p><strong>Case 2: The true label is $y_i = 0$.</strong><br>
+                For our model to be "good," it should have assigned a high probability to this outcome. The likelihood of observing this data point is $1-p_i$. To maximize the likelihood, we want to maximize $1-p_i$.</p>
+
+                <p>We need a single, elegant expression that captures both of these cases. This is achieved with the <strong>Bernoulli likelihood</strong> formula. For a single data point $(\mathbf{x}_i, y_i)$, the likelihood $L_i$ is:</p>
+                $$ L_i = p_i^{y_i} (1 - p_i)^{1-y_i} $$
+                <p>Let's verify this clever expression:</p>
+                <ul>
+                    <li>If the true label is $y_i=1$, the expression becomes $L_i = p_i^1 (1-p_i)^{1-1} = p_i^1 (1-p_i)^0 = p_i$. Correct.</li>
+                    <li>If the true label is $y_i=0$, the expression becomes $L_i = p_i^0 (1-p_i)^{1-0} = p_i^0 (1-p_i)^1 = 1-p_i$. Correct.</li>
+                </ul>
+                <p>So, our goal is to maximize this expression. For mathematical convenience (turning products into sums), we work with the natural logarithm of the likelihood, called the log-likelihood, $\ell_i$. Maximizing a function is the same as maximizing its logarithm.</p>
+                $$ \ell_i = \log(L_i) = \log(p_i^{y_i} (1 - p_i)^{1-y_i}) = y_i \log p_i + (1-y_i) \log(1-p_i) $$
+                <p>This expression is the log-likelihood for a <em>single</em> sample. Assuming all our training samples are independent, the total log-likelihood for the entire dataset is just the sum of the log-likelihoods for each sample:</p>
+                $$ \ell(\mathbf{w}, b) = \sum_{i=1}^N \ell_i = \sum_{i=1}^N \left[ y_i \log p_i + (1-y_i) \log(1-p_i) \right] $$
+                <p>Finally, in machine learning, we conventionally phrase optimization problems as <strong>minimizing a loss function</strong>, not maximizing a likelihood. Therefore, we define our loss as the <em>negative</em> of the average log-likelihood. This gives us the <strong>Binary Cross-Entropy Loss</strong>:</p>
+                $$ \mathcal{L}_{BCE}(\mathbf{w},b) = -\frac{1}{N} \ell(\mathbf{w},b) = -\frac{1}{N} \sum_{i=1}^N \left[ y_i \log p_i + (1-y_i) \log(1-p_i) \right] $$
+                <p><strong>Conclusion:</strong> The cross-entropy loss is not an arbitrary choice. It is the direct result of applying the fundamental principle of Maximum Likelihood Estimation to a binary classification model that outputs probabilities via the sigmoid function. Minimizing this loss is mathematically equivalent to finding the model parameters that make our observed data as likely as possible.</p>
+            </blockquote>
+
+            <h4>4.3 Regularization: Constraining Degrees of Freedom with Potentials</h4>
+            <p>In high-dimensional systems—models with many parameters ($d$) relative to the number of data points ($N$)—overfitting is a major problem. This is a classic high-variance scenario. The model has so much flexibility that it starts to fit the random noise in the training data rather than the underlying signal. This manifests as extremely large, unstable weight coefficients and results in poor generalization to new data. </p>
+            <p><strong>Regularization</strong> is the primary technique for combating this. It involves adding a penalty term to the loss function, which constrains the complexity of the model. This is physically equivalent to adding an external <strong>constraining potential</strong> to the system, which biases it towards simpler solutions (e.g., smaller coefficients).</p>
+            $$ \mathcal{L}_{\text{reg}}(\mathbf{w}) = \mathcal{L}_{\text{data}}(\mathbf{w}) + \lambda \Omega(\mathbf{w}) $$
+            <p>Here, $\mathcal{L}_{\text{data}}$ is the original loss (like MSE), $\Omega(\mathbf{w})$ is the regularization potential, and $\lambda \ge 0$ is the regularization strength, a hyperparameter that controls the tradeoff between fitting the data and keeping the parameters constrained. It is directly analogous to a coupling constant.</p>
+            
+            <ul>
+                <li><p><strong>Ridge Regression (L2 Regularization)</strong></p>
+                <p>Ridge regression adds a penalty proportional to the squared L2-norm (the squared Euclidean magnitude) of the coefficient vector:</p>
+                $$ \Omega(\mathbf{w}) = ||\mathbf{w}||_2^2 = \sum_{j=1}^d w_j^2 $$
+                <p><strong>Physical Analogy:</strong> The penalty term is an <strong>isotropic harmonic potential</strong>, $V(\mathbf{w}) = \lambda |\mathbf{w}|^2$. This potential acts like a set of springs, one for each weight, tethering them to the origin of the parameter space. The optimization must now minimize both the data-fitting error and this potential energy. This prevents any single coefficient from growing too large, as doing so would incur a large energy penalty.</p>
+                <p><strong>Geometric Intuition:</strong> The L2 penalty forces the solution vector $\mathbf{w}$ to lie within a hypersphere of a certain radius. The final solution is the point where the elliptical contours of the original loss function first touch this spherical boundary. Because the sphere is smooth and has no corners, the solution will almost never have any component that is exactly zero.</p>
+                <p><strong>Effect on Solution:</strong> Ridge regression shrinks all coefficients towards zero, but it doesn't set them to zero. It produces "dense" solutions, where most features have a non-zero, albeit small, weight. This is particularly useful when you believe that many features contribute to the final outcome. It's a "democratic" approach to feature importance.</p>
+                <p><strong>Bayesian Interpretation:</strong> Minimizing the Ridge loss is mathematically equivalent to finding the MAP estimate for the weights under the assumption of a <strong>zero-mean Gaussian prior</strong> on the weights, $p(\mathbf{w}) \propto \exp(-||\mathbf{w}||_2^2 / 2\sigma_p^2)$. A Gaussian prior expresses a belief that the weights are likely to be small and clustered around zero, which is exactly what the harmonic potential encourages.</p></li>
+
+                <li><p><strong>LASSO Regression (L1 Regularization)</strong></p>
+                <p>The LASSO (Least Absolute Shrinkage and Selection Operator) uses a penalty proportional to the L1-norm (the sum of the absolute values):</p>
+                $$ \Omega(\mathbf{w}) = ||\mathbf{w}||_1 = \sum_{j=1}^d |w_j| $$
+                <p><strong>Physical Analogy:</strong> The L1 potential, $V(\mathbf{w}) = \lambda \sum |w_j|$, is different from a smooth harmonic well. It's a potential with a sharp, pointed "cusp" at the origin for each parameter axis. This cusp has a profound effect on the dynamics of optimization.</p>
+                <p><strong>Geometric Intuition:</strong> The L1 penalty forces the solution to lie within a diamond-shaped region (a hyper-octahedron in higher dimensions). This shape has sharp corners that lie exactly on the parameter axes. As the elliptical contours of the loss function expand, they are much more likely to make contact with one of these sharp corners than with a flat edge. A point on a corner is a point where one or more of the parameter coordinates are exactly zero. This is the geometric origin of sparsity.</p>
+                <p><strong>Effect on Solution:</strong> LASSO performs automatic <strong>feature selection</strong>. It forces the coefficients of the least important features to become <strong>exactly zero</strong>. The resulting model is "sparse," meaning it only depends on a subset of the original features. This is an "autocratic" approach that is incredibly useful for interpretability (we can see which features the model discarded) and for high-dimensional problems where we suspect most features are irrelevant noise.</p>
+                <p><strong>Bayesian Interpretation:</strong> L1 regularization corresponds to a <strong>Laplace prior</strong> on the weights, $p(w_j) \propto \exp(-|w_j|/\tau)$. A Laplace distribution is sharply peaked at zero and has heavier tails than a Gaussian. This prior expresses a strong belief that most weights are *exactly* zero, while being more tolerant of a few weights being quite large, which perfectly describes the sparse solutions found by LASSO.</p></li>
+            </ul>
+        </main>
+        
+        <hr>
+        
+        <nav class="navigation-links" style="display: flex; justify-content: space-between;">
+            <a href="ch3.html">← Chapter 3</a>
+            <a href="ch5.html">Chapter 5: Support Vector Machines →</a>
+        </nav>
+    </div>
+
+</body>
+</html>

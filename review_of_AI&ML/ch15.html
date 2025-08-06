@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 15: Graph Neural Networks | AI for the Physicist</title>
+    
+    <link rel="stylesheet" href="css/style.css">
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true},{left: '$', right: '$', display: false}]});"></script>
+
+    <!-- Mermaid.js for rendering diagrams -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({startOnLoad:true});</script>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <p><a href="index.html">← Back to Table of Contents</a></p>
+            <h2>Chapter 15: Graph Neural Networks – Learning on Relational Structures</h2>
+        </header>
+
+        <main>
+            
+            <p>We have seen how Convolutional Neural Networks (CNNs) are masterful at exploiting the structure of grid-like, Euclidean data. But what about data where the structure is irregular? Many systems in physics are naturally described not by regular grids, but by <strong>graphs</strong> with arbitrary connections:</p>
+            <ul>
+                <li><strong>Molecules:</strong> Atoms are nodes, and chemical bonds are edges. The number of bonds per atom varies.</li>
+                <li><strong>Particle Physics:</strong> Reconstructed particles in a detector are nodes, with edges representing relationships like proximity or shared origin.</li>
+                <li><strong>Cosmological Simulations:</strong> Galaxies are nodes, with edges representing gravitational influence.</li>
+            </ul>
+            <p>Graph Neural Networks (GNNs) are the generalization of convolutions to this irregular, graph-structured data. They learn from the topology of the system itself, respecting its fundamental symmetries.</p>
+
+            <h4>15.1 The Importance of Symmetries: Permutation Equivariance</h4>
+            <p>A fundamental principle in physics and model building is to incorporate the correct symmetries as an <strong>inductive bias</strong>. For GNNs, the key symmetry is <strong>permutation equivariance</strong>.</p>
+            <p>A graph is defined by its nodes and their connections, not by the arbitrary order in which we list them in a computer. If we have a graph with $N$ nodes, we can represent its node features as a matrix $\mathbf{X} \in \mathbb{R}^{N \times d}$ and its structure by an adjacency matrix $\mathbf{A} \in \mathbb{R}^{N \times N}$. If we re-order or "permute" the nodes using a permutation matrix $\mathbf{P}$ (a matrix with exactly one '1' in each row and column), the new adjacency matrix is $\mathbf{P}\mathbf{A}\mathbf{P}^T$ and the new feature matrix is $\mathbf{P}\mathbf{X}$.</p>
+            <p>A GNN layer, represented by a function $f$, must be <strong>equivariant</strong> to this permutation. This means that processing the permuted graph and then permuting the output is the same as permuting the output of the original graph. Formally:</p>
+            $$ f(\mathbf{P}\mathbf{A}\mathbf{P}^T, \mathbf{P}\mathbf{X}) = \mathbf{P} f(\mathbf{A}, \mathbf{X}) $$
+            <p>This guarantees that the network's operation depends on the graph's intrinsic topology, not on an arbitrary and meaningless labeling of its nodes. The physics doesn't change just because we renamed the atoms, so the model's predictions shouldn't either.</p>
+            <p>If the goal is a single prediction for the entire graph (e.g., predicting a molecule's total energy), the final function must be <strong>permutation invariant</strong> ($g(\mathbf{P}\mathbf{A}\mathbf{P}^T, \mathbf{P}\mathbf{X}) = g(\mathbf{A}, \mathbf{X})$). This is typically achieved by applying a permutation-invariant pooling operation (like summing or averaging) to the final equivariant node representations.</p>
+            <p>This means if we relabel the nodes in the input graph, the output node representations are relabeled in exactly the same way. The network's operation depends on the graph's topology, not on an arbitrary labeling of its nodes.</p>
+            <blockquote>
+            <p><strong>Intuitive Example:</strong> Imagine a GNN designed to predict the partial charge of each atom in a water molecule (H-O-H). The input would be a graph with three nodes (O, H1, H2). If we create a second, identical input graph but swap the labels of the two hydrogen atoms (H2-O-H1), an equivariant GNN must output the exact same charge for the oxygen and the same charges for the two hydrogens, just in the new, swapped order. The physics doesn't change just because we renamed the atoms.</p>
+            </blockquote>
+            <p>If the goal is a single prediction for the entire graph (e.g., predicting a molecule's total energy), the final function must be <strong>permutation invariant</strong>. This is typically achieved by applying a permutation-invariant pooling operation (like summing or averaging) to the final equivariant node representations.</p>
+
+            <h4>15.2 The Message-Passing Paradigm</h4>
+            <p>The core computational primitive that enforces this equivariance is <strong>message passing</strong>. This is a direct computational analog of <strong>local interactions propagating</strong> through a physical system. A GNN layer updates the feature vector (the "state") of each node by aggregating information from its local neighborhood. This process is repeated for $L$ layers, allowing information to propagate up to $L$ hops away across the graph.</p>
+            <p>A single layer's update can be broken down into three conceptual steps, which are performed in parallel for every node in the graph:</p>
+            
+            <h5>Step 1: The Message Function ($\psi$)</h5>
+            <p>In the first step, each node's neighbors "prepare" messages to send to it. For an edge from a neighbor node $j$ to a central node $i$, a message vector $\mathbf{m}_{ji}$ is computed. This function typically combines the feature vectors of the two nodes involved in the edge:</p>
+            $$ \mathbf{m}_{ji} = \psi(\mathbf{h}_i^{(k)}, \mathbf{h}_j^{(k)}) $$
+            <p>Here, $\mathbf{h}_i^{(k)}$ is the feature vector of node $i$ at the current layer $k$. The function $\psi$ is usually a small neural network (an MLP) that learns how to construct a meaningful message based on the states of the sender and receiver.</p>
+
+            <h5>Step 2: The Aggregation Function ($\bigoplus$)</h5>
+            <p>Next, each node $i$ collects all the messages sent to it from its neighbors $\mathcal{N}(i)$ and aggregates them into a single vector, $\mathbf{m}_i^{(k)}$.</p>
+            $$ \mathbf{m}_i^{(k)} = \bigoplus_{j \in \mathcal{N}(i)} \mathbf{m}_{ji} $$
+            <p>This is the most critical step for ensuring permutation equivariance. The aggregation function $\bigoplus$ must be a <strong>permutation-invariant function</strong>. This means that if you shuffle the order of the neighbors, the output of the aggregation must be exactly the same. Common choices that satisfy this property include:</p>
+            <ul>
+                <li><strong>Sum:</strong> $\sum_j \mathbf{m}_{ji}$ (Preserves all information)</li>
+                <li><strong>Mean:</strong> $\frac{1}{|\mathcal{N}(i)|} \sum_j \mathbf{m}_{ji}$ (Normalizes for varying number of neighbors)</li>
+                <li><strong>Max:</strong> $\max_j(\mathbf{m}_{ji})$ (Focuses on the most prominent feature in the neighborhood)</li>
+            </ul>
+            <p>By using a function like `sum` or `mean`, we guarantee that the aggregated message depends only on the *set* of neighbors, not on their arbitrary ordering.</p>
+
+            <h5>Step 3: The Update Function ($\phi$)</h5>
+            <p>Finally, the aggregated message $\mathbf{m}_i^{(k)}$ is used to update the node's own feature vector to produce its representation for the next layer, $\mathbf{h}_i^{(k+1)}$. This function combines the information from the neighborhood with the node's own information from the previous layer:</p>
+            $$ \mathbf{h}_i^{(k+1)} = \phi(\mathbf{h}_i^{(k)}, \mathbf{m}_i^{(k)}) $$
+            <p>The update function $\phi$ is also typically a learned neural network. It learns the optimal way to integrate the neighborhood context with the node's existing state to produce a more refined representation.</p>
+
+            <div class="figure">
+                <div class="mermaid">
+                    graph TD
+                        subgraph "GNN Layer k → k+1: Update for Node A"
+                            hA_k["h_k(A)"]
+                            hB_k["h_k(B)"]
+                            hC_k["h_k(C)"]
+
+                            subgraph "1. Message Creation"
+                                m_BA["Message m_BA"]
+                                m_CA["Message m_CA"]
+                            end
+
+                            hB_k --> m_BA
+                            hC_k --> m_CA
+                            
+                            subgraph "2. Aggregation"
+                                Agg["Aggregated Message<br>m_A = m_BA ⊕ m_CA"]
+                            end
+
+                            m_BA --> Agg
+                            m_CA --> Agg
+
+                            subgraph "3. Update"
+                                hA_k1["h_k+1(A)"]
+                            end
+
+                            hA_k --> hA_k1
+                            Agg  --> hA_k1
+                        end
+                </div>
+                <p class="caption"><b>Figure 15.1:</b> The message-passing mechanism for updating a single node 'A' which has neighbors 'B' and 'C'. To compute its new state, messages are created from its neighbors, aggregated using a permutation-invariant function (⊕), and then combined with the node's own previous state to produce its new state. This process is performed for all nodes in parallel.</p>
+            </div>
+
+            <h5>Graph Convolutional Networks (GCNs)</h5>
+            <p>A GCN is a specific, simple, and powerful implementation of the message-passing framework. Its update rule for all nodes at once is:</p>
+            $$ \mathbf{H}^{(k+1)} = \sigma \left( \tilde{\mathbf{D}}^{-1/2} \tilde{\mathbf{A}} \tilde{\mathbf{D}}^{-1/2} \mathbf{H}^{(k)} \mathbf{W}^{(k)} \right) $$
+            <p>This formula can be understood as a specific choice for the message-passing steps. The term $\tilde{\mathbf{D}}^{-1/2} \tilde{\mathbf{A}} \tilde{\mathbf{D}}^{-1/2} \mathbf{H}^{(k)}$ is a single matrix operation that effectively computes a normalized average of the feature vectors of a node and its neighbors. This is a very efficient form of message aggregation. This aggregated information is then passed through a single linear layer ($\mathbf{W}^{(k)}$) and a non-linearity ($\sigma$), which serves as the update step. The normalization term $\tilde{\mathbf{D}}^{-1/2}$ is physically important as it prevents instabilities in nodes with many neighbors (high-degree nodes), acting like a damping factor.</p>
+
+            <h5>Graph Attention Networks (GATs)</h5>
+            <p>A limitation of GCNs is that the aggregation is a fixed, weighted average. It cannot learn to assign different levels of importance to different neighbors. <strong>Graph Attention Networks (GATs)</strong> make the aggregation more flexible by using an attention mechanism. The update rule becomes a learned, weighted sum:</p>
+            $$ \mathbf{h}_i^{(k+1)} = \sigma \left( \sum_{j \in \mathcal{N}(i) \cup \{i\}} \alpha_{ij}^{(k)} \mathbf{W}^{(k)} \mathbf{h}_j^{(k)} \right) $$
+            <p>Here, the attention coefficient $\alpha_{ij}$ is not fixed. It is computed dynamically for each edge based on the features of the nodes $i$ and $j$, similar to how Queries and Keys are used in Transformers. This allows the model to dynamically learn which neighbors are more "relevant" for a given task, analogous to physical systems with state-dependent interaction strengths.</p>
+        </main>
+        
+        <hr>
+        
+        <nav class="navigation-links" style="display: flex; justify-content: space-between;">
+            <a href="ch14.html">← Chapter 14</a>
+            <a href="ch16.html">Chapter 16: Variational Autoencoders →</a>
+        </nav>
+    </div>
+
+</body>
+</html>

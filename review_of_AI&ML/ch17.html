@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 17: Generative Adversarial Networks | AI for the Physicist</title>
+    
+    <link rel="stylesheet" href="css/style.css">
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true},{left: '$', right: '$', display: false}]});"></script>
+
+    <!-- Mermaid.js for rendering diagrams -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({startOnLoad:true});</script>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <p><a href="index.html">← Back to Table of Contents</a></p>
+            <h2>Chapter 17: Generative Adversarial Networks (GANs) – A Two-Player Game</h2>
+        </header>
+
+        <main>
+            <p>Generative Adversarial Networks (GANs) employ a brilliantly novel training procedure based on a two-player, zero-sum <strong>minimax game</strong>. Instead of an explicit loss function like reconstruction error (as in VAEs), GANs learn by forcing their generated samples to be indistinguishable from real data according to an adaptive adversary. The physical analogy here is less about a single system reaching equilibrium and more about two systems competing in a co-evolutionary dynamic.</p>
+            
+            <blockquote>
+                <p><strong>The Core Analogy: The Forger and the Critic</strong></p>
+                <p>Imagine an art forger who wants to create fake Picasso paintings, and an art critic who wants to be able to spot fakes.
+                <ul>
+                    <li>The <strong>Generator (G)</strong> is the forger. It starts by producing random noise (splattering paint on a canvas). Its goal is to get better and better at creating paintings that look like real Picassos.</li>
+                    <li>The <strong>Discriminator (D)</strong> is the critic. It is shown a mix of real Picassos and the forger's fakes. Its goal is to get better and better at telling them apart.</li>
+                </ul>
+                <p>They train together. The critic's feedback on why a fake looks fake (e.g., "the brushstrokes are wrong") is used to teach the forger. The forger's improving fakes force the critic to learn more subtle details. This adversarial loop continues until the forger becomes so good that the critic can no longer do better than random guessing. At this point, the forger is a master painter, and we have a perfect generator.</p>
+            </blockquote>
+            
+            <p>In a GAN, these two players are neural networks:</p>
+            <ul>
+                <li>The <strong>Generator (G)</strong>: It takes a random noise vector $\mathbf{z}$ as input and outputs a synthetic data sample $\mathbf{x}_{\text{fake}} = G(\mathbf{z})$.</li>
+                <li>The <strong>Discriminator (D)</strong>: It is a standard binary classifier that takes a data sample $\mathbf{x}$ as input and outputs a single scalar probability, $D(\mathbf{x})$, representing the probability that $\mathbf{x}$ is real.</li>
+            </ul>
+
+            <h4>17.1 The Minimax Game</h4>
+            <p>The training is formalized in a single value function, $V(G, D)$, which one player tries to maximize and the other tries to minimize:</p>
+            $$ \min_G \max_D V(G, D) = \mathbb{E}_{\mathbf{x} \sim p_{\text{data}}(\mathbf{x})} [\log D(\mathbf{x})] + \mathbb{E}_{\mathbf{z} \sim p_{\mathbf{z}}(\mathbf{z})} [\log(1 - D(G(\mathbf{z})))] $$
+            <p>Let's break down this objective from each player's perspective:</p>
+            <ul>
+                <li><strong>The Discriminator's Goal ($\max_D V$):</strong> The Discriminator wants to maximize this function. This is exactly the binary cross-entropy loss for a classifier. For real data ($\mathbf{x}$), it wants to make $D(\mathbf{x})$ close to 1, maximizing $\log D(\mathbf{x})$. For fake data ($G(\mathbf{z})$), it wants to make $D(G(\mathbf{z}))$ close to 0, which maximizes the second term, $\log(1 - D(G(\mathbf{z})))$.</li>
+                <li><strong>The Generator's Goal ($\min_G V$):</strong> The Generator only controls the second term. It wants to fool the Discriminator, meaning it wants the Discriminator to output a high probability for its fake samples, $D(G(\mathbf{z})) \to 1$. If it achieves this, the term $1 - D(G(\mathbf{z}))$ goes to 0, and $\log(1 - D(G(\mathbf{z})))$ goes to $-\infty$, thus minimizing the value function.</li>
+            </ul>
+            <p>At the theoretical equilibrium, the generator's distribution $p_g$ perfectly matches the real data distribution $p_{\text{data}}$. At this point, the optimal discriminator is completely fooled and can only guess randomly, outputting $D^*(\mathbf{x})=1/2$ for all inputs.</p>
+
+            <div class="figure">
+                <div class="mermaid">
+                    graph TD
+                        subgraph "GAN Training Loop"
+                            Noise["Latent Noise z"] --> G[("Generator G")]
+                            G --> Fake_Data["Fake Data x_fake"]
+                            
+                            Real_Data["Real Data x_real"] --> D{Discriminator D}
+                            Fake_Data --> D
+                            
+                            D -- "Prob(Real)" --> Loss
+                            
+                            subgraph "Loss Function V(G,D)"
+                                Loss
+                            end
+                            
+                            Loss -- "Gradient Ascent<br><em>'Make me better at spotting fakes'</em>" --> D
+                            Loss -- "Gradient Descent<br><em>'Make me better at fooling the critic'</em>" --> G
+                        end
+                </div>
+                <p class="caption"><b>Figure 17.1:</b> The adversarial training loop of a GAN. The Generator and Discriminator are trained in opposition. The loss function's gradient is used to update the Discriminator to improve its accuracy and to update the Generator to improve its ability to create realistic fakes.</p>
+            </div>
+
+            <h4>17.2 Challenges and Improvements</h4>
+            <p>The adversarial dynamic, while powerful, makes training GANs notoriously difficult and unstable. Finding the Nash equilibrium of this two-player game is a significant challenge. Common failure modes include:</p>
+            <ul>
+                <li><strong>Mode Collapse:</strong> The generator discovers one or a few "safe" outputs that can easily fool the current discriminator and begins to produce only those, failing to capture the full diversity of the data distribution. It's as if the forger learns that the critic is bad at spotting fake sunsets, so they only ever paint sunsets.</li>
+                <li><strong>Vanishing Gradients:</strong> If the discriminator becomes too good, its output for fake samples will be very close to 0. In this region, the gradient of the original generator loss, $\log(1-D(G(\mathbf{z})))$, is very flat and provides almost no signal for the generator to learn from. The forger's learning stalls.</li>
+                <li><strong>Training Instability:</strong> The minimax game does not always converge smoothly. The players can oscillate, with the critic learning to detect one flaw, the forger fixing it, the critic finding a new flaw, and so on, without ever reaching a stable equilibrium.</li>
+            </ul>
+            <p>Many improvements have been proposed to address these issues. One of the most significant is the <strong>Wasserstein GAN (WGAN)</strong>. Instead of a discriminator that predicts a probability, the WGAN uses a "critic" network that is trained to estimate the <strong>Wasserstein distance</strong> (or Earth-Mover's distance) between the real and fake distributions. This distance metric has much nicer properties for deep learning, providing smooth, non-vanishing gradients even when the two distributions are very different. This leads to dramatically more stable training and has been foundational for many subsequent advances in GANs, allowing for the generation of extremely high-quality images.</p>
+        </main>
+        
+        <hr>
+        
+        <nav class="navigation-links" style="display: flex; justify-content: space-between;">
+            <a href="ch16.html">← Chapter 16</a>
+            <a href="ch18.html">Chapter 18: Diffusion & Score-Based Models →</a>
+        </nav>
+    </div>
+
+</body>
+</html>

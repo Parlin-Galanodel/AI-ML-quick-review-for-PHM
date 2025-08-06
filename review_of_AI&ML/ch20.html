@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 20: Physics-Informed ML | AI for the Physicist</title>
+    
+    <link rel="stylesheet" href="css/style.css">
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true},{left: '$', right: '$', display: false}]});"></script>
+
+    <!-- Mermaid.js for rendering diagrams -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({startOnLoad:true});</script>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <p><a href="index.html">← Back to Table of Contents</a></p>
+            <h2>Chapter 20: Physics-Informed and Differentiable Machine Learning</h2>
+        </header>
+
+        <main>
+            <p>The models we have studied so far are largely "black boxes" that learn from data alone. While powerful, they have no intrinsic knowledge of the physical laws that govern the systems they model. This can lead to predictions that are physically implausible or that violate fundamental principles like conservation of energy. This chapter explores a new paradigm where physical laws are not just used to validate a model, but are baked directly into its architecture and training process.</p>
+
+            <h4>20.1 Physics-Informed Neural Networks (PINNs)</h4>
+            <p>PINNs are a class of neural networks specifically designed to solve and discover solutions to partial differential equations (PDEs), the language of so much of physics. A PINN is typically a simple MLP that takes spatio-temporal coordinates (e.g., $\mathbf{x}, t$) as input and outputs the solution of the PDE at that point, $\hat{u}(\mathbf{x}, t)$. The network itself becomes a continuous, differentiable representation of the solution field.</p>
+            <p>The key innovation is to include the governing physical law, expressed as a PDE, directly within the <strong>loss function</strong>. The network's output is trained to minimize a composite loss:</p>
+            $$ \mathcal{L}_{\text{total}} = \mathcal{L}_{\text{data}} + \lambda \mathcal{L}_{\text{phys}} $$
+            <ol>
+                <li><strong>Data Loss ($\mathcal{L}_{\text{data}}$):</strong> This is a standard data-fitting term (e.g., MSE) that measures the error between the network's predictions and any observed data points, such as initial conditions ($u(x,0)$) or boundary conditions ($u(-1,t)$). This term "anchors" the solution to known measurements.</li>
+                <li><strong>Physics Loss ($\mathcal{L}_{\text{phys}}$):</strong> This term enforces the PDE itself. We define the residual of the PDE, for example $f = \frac{\partial u}{\partial t} + u \frac{\partial u}{\partial x} - \nu \frac{\partial^2 u}{\partial x^2}$. The network's output $\hat{u}$ is analytically differentiated with respect to its inputs ($x$ and $t$) using <strong>automatic differentiation</strong> (the same mechanism behind backpropagation) to compute the residual of the PDE, $\hat{f}$. The physics loss is the mean squared error of this residual, evaluated at a large number of randomly sampled points ("collocation points") throughout the interior of the domain. It penalizes any deviation from the physical law.</li>
+            </ol>
+            <p>By forcing the network's output to obey the known laws of physics everywhere, PINNs can find accurate solutions even with very sparse data. They effectively use the PDE as an infinitely strong regularizer, guiding the interpolation between data points in a physically plausible way.</p>
+			            <div class="figure">
+                <div class="figure-container" style="display: flex; justify-content: space-around; align-items: flex-start; flex-wrap: wrap;">
+                    
+                    <!-- Left side: Standard NN -->
+                    <div style="flex: 1; min-width: 300px; margin: 10px; text-align: center;">
+                        <h4>Standard Neural Network</h4>
+                        <img src="https://benmoseley.blog/wp-content/uploads/2021/08/nn.gif" alt="Standard Neural Network fitting sparse data" style="max-width: 100%; border: 1px solid #e0dccc;">
+                    </div>
+
+                    <!-- Right side: PINN -->
+                    <div style="flex: 1; min-width: 300px; margin: 10px; text-align: center;">
+                        <h4>Physics-Informed Neural Network (PINN)</h4>
+                        <img src="https://benmoseley.blog/wp-content/uploads/2021/08/pinn.gif" alt="Physics-Informed Neural Network fitting sparse data" style="max-width: 100%; border: 1px solid #e0dccc;">
+                    </div>
+
+                </div>
+                <p class="caption">
+                    <b>Figure 20.2:</b> A visual comparison of training on sparse data. 
+                    <b>(Left)</b> A standard neural network is trained only on the known data points (the red crosses). It fits them perfectly but its interpolation between the points is wild, unphysical, and changes erratically during training.
+                    <b>(Right)</b> A PINN is trained on both the data points and the underlying physical law (the PDE). The physics loss acts as a powerful regularizer, forcing the solution to be smooth and physically plausible everywhere, resulting in a much better and more stable approximation of the true solution (the black line). (GIFs credit: Ben Moseley)
+                </p>
+            </div>
+
+            <h4>20.2 Differentiable Physics Simulations</h4>
+            <p>What if we already have a high-quality simulator for a physical system (e.g., an N-body gravity simulator), but it has free parameters we want to determine from data? <strong>Differentiable programming</strong> offers a revolutionary alternative. If the simulator is written in a language that supports automatic differentiation (like JAX or PyTorch), we can make the entire simulator <strong>end-to-end differentiable</strong>.</p>
+            <p>This means we can compute the gradient of a final simulation outcome with respect to the initial parameters of the simulation, even through complex time-stepping loops. We can define a loss function between the simulation's output and an observation, and then use gradient descent to find the optimal parameters that make the simulation match reality. We are effectively <strong>backpropagating through the entire physics simulation</strong>. This transforms simulation from a tool for forward prediction into an optimizable object that can be integrated into larger machine learning systems.</p>
+
+            <h4>20.3 Lagrangian and Hamiltonian Neural Networks</h4>
+            <p>This represents one of the most elegant integrations of physics into machine learning. Instead of learning the dynamics of a system directly (i.e., learning the force field $\mathbf{f}$ in $\dot{\mathbf{x}} = \mathbf{f}(\mathbf{x})$), these models learn a more fundamental, coordinate-independent scalar quantity: the system's <strong>Lagrangian</strong> $\mathcal{L}(q, \dot{q})$ or its <strong>Hamiltonian</strong> $\mathcal{H}(q, p)$.</p>
+            <p>A simple neural network is trained to map the system's state to this single scalar value. For example, a <strong>Hamiltonian Neural Network (HNN)</strong> is a network $H_{\text{net}}(q,p)$ that takes the state $(q,p)$ as input and outputs a single number—an estimate of the system's total energy.</p>
+            <p>The brilliance of this approach is that the time evolution of the system is not predicted by the network directly. Instead, it is derived from the learned Hamiltonian using the principles of analytical mechanics—<strong>Hamilton's equations</strong>:</p>
+            $$ \dot{q} = \frac{\partial H_{\text{net}}}{\partial p} \qquad \dot{p} = -\frac{\partial H_{\text{net}}}{\partial q} $$
+            <p>The gradients are computed using automatic differentiation. By its very construction, a system evolved using these equations will <strong>exactly conserve the learned Hamiltonian quantity $H_{\text{net}}$</strong>, because the time derivative of the Hamiltonian along a valid trajectory is always zero:</p>
+            $$ \frac{dH_{\text{net}}}{dt} = \frac{\partial H_{\text{net}}}{\partial q} \dot{q} + \frac{\partial H_{\text{net}}}{\partial p} \dot{p} = \frac{\partial H_{\text{net}}}{\partial q} \left(\frac{\partial H_{\text{net}}}{\partial p}\right) + \frac{\partial H_{\text{net}}}{\partial p} \left(-\frac{\partial H_{\text{net}}}{\partial q}\right) = 0 $$
+            
+            <p>Similarly, a <strong>Lagrangian Neural Network (LNN)</strong> learns the Lagrangian $\mathcal{L}_{\text{net}}(q, \dot{q})$. The dynamics are then derived by solving the Euler-Lagrange equation, again using automatic differentiation:</p>
+            $$ \frac{d}{dt} \frac{\partial \mathcal{L}_{\text{net}}}{\partial \dot{q}} - \frac{\partial \mathcal{L}_{\text{net}}}{\partial q} = 0 $$
+            <p>This architectural choice embeds fundamental physical principles, like the conservation of energy, directly into the model's structure. This leads to dramatically improved long-term stability and generalization in physical simulations compared to naive approaches that can violate these laws over time.</p>
+            
+            <div class="figure">
+                <div class="mermaid">
+                    graph TD
+                        subgraph "Standard 'Black-Box' Approach"
+                            A["State (q, p)"] --> NN_BlackBox["NN learns Force<br>f_θ(q,p)"]
+                            NN_BlackBox --> B["Predicted ΔState"]
+                            subgraph note1 ["Energy conservation not guaranteed"]
+                            end
+                        end
+
+                        subgraph "Hamiltonian Neural Network (HNN) Approach"
+                            C["State (q, p)"] --> NN_Hamiltonian["NN learns Energy<br>H_net(q,p)"]
+                            NN_Hamiltonian -- "Automatic Differentiation" --> HamiltonsEq["Hamilton's Equations<br>q_dot = dH/dp<br>p_dot = -dH/dq"]
+                            HamiltonsEq --> E["Predicted ΔState"]
+                            subgraph note2 ["Energy conservation is guaranteed by structure"]
+                            end
+                        end
+                </div>
+                <p class="caption"><b>Figure 20.2:</b> Comparison of a standard neural network dynamics model and a Hamiltonian Neural Network (HNN). The standard approach (left) learns the update rule directly and can violate physical laws. The HNN (right) learns the scalar Hamiltonian and uses automatic differentiation to derive the dynamics, guaranteeing that the learned energy is conserved.</p>
+            </div>
+			            <h4>20.4 Beyond PDEs: Physics-Informed Learning in Complex Systems</h4>
+            <p>The methods described so far—PINNs, HNNs, LNNs—are incredibly powerful when we have a known, analytical equation of motion. But what about more complex, real-world systems where the governing equations are unknown, intractable, or only exist as an emergent, macroscopic description? This is common in fields like materials science, climate modeling, or turbulent fluid dynamics. We can still inject physical knowledge into our models without a formal PDE.</p>
+            <p>The key is to enforce known physical principles as <strong>inductive biases</strong> or <strong>soft constraints</strong>.</p>
+            
+            <h5>1. Imposing Known Symmetries</h5>
+            <p>Even if we don't know the exact Hamiltonian of a system, we often know its fundamental symmetries. We can build these symmetries directly into the architecture of the neural network, forcing it to produce predictions that respect these physical laws by construction.</p>
+            <ul>
+                <li><strong>Example: Equivariant Graph Neural Networks (GNNs) for Molecular Dynamics.</strong> When simulating a system of interacting particles, the forces are typically invariant to translation and rotation of the entire system (Galilean invariance). A standard MLP that takes particle coordinates $(x, y, z)$ as input would have to learn this symmetry from the data, which is inefficient and prone to error. An <strong>equivariant GNN</strong>, however, is designed specifically to respect these symmetries. It operates not on the absolute coordinates, but on the relative distances and angles between particles. Because its internal operations are equivariant, any rotation of the input molecule will result in a perfectly rotated output of the predicted force vectors. The model is guaranteed to respect the physical symmetry, leading to much better generalization and sample efficiency.</li>
+            </ul>
+            
+            <h5>2. Enforcing Conservation Laws</h5>
+            <p>Another powerful principle is the conservation of physical quantities like energy, momentum, or mass. Even if the dynamics are too complex to write down, we often know that these quantities must be conserved over time.</p>
+            <p>We can enforce this as a soft constraint by adding a new term to our loss function. Suppose we are training a neural network to predict the time evolution of a system from state $\mathbf{s}_t$ to $\mathbf{s}_{t+1}$.</p>
+            $$ \mathcal{L}_{\text{total}} = \mathcal{L}_{\text{prediction}} + \lambda \mathcal{L}_{\text{conservation}} $$
+            <ul>
+                <li>$\mathcal{L}_{\text{prediction}}$ is the standard loss that penalizes the model for making inaccurate state predictions (e.g., MSE between the predicted next state and the true next state from a simulation).</li>
+                <li>$\mathcal{L}_{\text{conservation}}$ is a term that penalizes any violation of a known conservation law. For example, if energy $E(\mathbf{s})$ must be conserved, we can define this loss as:
+                $$ \mathcal{L}_{\text{conservation}} = |E(\mathbf{s}_{t+1}) - E(\mathbf{s}_t)|^2 $$</li>
+            </ul>
+            <p>By minimizing this composite loss, the model is encouraged to learn a dynamics function that not only fits the data but also adheres to the fundamental conservation principles of the system. This acts as a powerful regularizer, preventing the model from learning physically implausible trajectories, especially over long-term predictions where small errors in energy can accumulate and cause the simulation to become unstable or "blow up." This approach allows us to distill physical priors from our theoretical knowledge and inject them into a data-driven model, even in the absence of a clean, analytical PDE.</p>
+        </main>
+        
+        <hr>
+        
+        <nav class="navigation-links" style="display: flex; justify-content: space-between;">
+            <a href="ch19.html">← Chapter 19</a>
+            <a href="ch21.html">Chapter 21: AI in Simulation and Discovery →</a>
+        </nav>
+    </div>
+
+</body>
+</html>

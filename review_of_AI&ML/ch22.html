@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 22: Causality | AI for the Physicist</title>
+    
+    <link rel="stylesheet" href="css/style.css">
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true},{left: '$', right: '$', display: false}]});"></script>
+
+    <!-- Mermaid.js for rendering diagrams -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({startOnLoad:true});</script>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <p><a href="index.html">← Back to Table of Contents</a></p>
+            <h2>Chapter 22: Causality – Beyond Correlation</h2>
+        </header>
+
+        <main>
+            <p>A critical limitation of most standard machine learning models is that they are masters of identifying <strong>correlation</strong>, but as the old adage warns, "correlation does not imply causation." This is not just a philosophical footnote; it is a fundamental barrier to using AI for genuine scientific understanding and effective decision-making. This chapter introduces the modern mathematical tools for reasoning about cause and effect, a crucial step for moving from prediction to genuine scientific understanding.</p>
+
+            <h4>22.1 The Causal Ladder of Reasoning</h4>
+            <p>Relying on purely correlational models can lead to disastrously wrong conclusions. A classic example: a model trained on city data would find a strong positive correlation between ice cream sales and shark attacks. A naive correlational model would conclude that selling ice cream causes shark attacks, and would recommend banning ice cream to improve public safety. This is a real correlation, but it is <strong>spurious</strong>. Ice cream sales do not cause shark attacks; both are caused by a hidden common factor, or <strong>confounder</strong>: hot weather (which leads to more people buying ice cream and more people swimming in the ocean).</p>
+            
+            <div class="figure">
+                <div class="mermaid">
+                    graph TD
+                        Z(Hot Weather) --> X(Ice Cream Sales);
+                        Z --> Y(Shark Attacks);
+                        
+                        subgraph "Spurious Correlation"
+                            X -.-> Y;
+                        end
+                </div>
+                <p class="caption"><b>Figure 22.1:</b> A simple causal graph for a spurious correlation. Ice Cream Sales (X) and Shark Attacks (Y) are correlated because they share a common cause, Hot Weather (Z), which is a confounder. There is no direct causal arrow from X to Y.</p>
+            </div>
+            
+            <p>Judea Pearl, a pioneer in this field, proposed a "Causal Ladder" with three rungs of reasoning, each representing a more powerful level of understanding:</p>
+            <ol>
+                <li><strong>Association (Seeing):</strong> This is the level of standard machine learning. It involves finding statistical relationships and answers questions like "What is the probability of Y given that we <em>observe</em> X?" ($P(Y|X)$). Example: "Given that a patient's cholesterol is high, how likely are they to have a heart attack?" This is useful for prediction and diagnosis.</li>
+                <li><strong>Intervention (Doing):</strong> This level involves predicting the effects of deliberate actions. It answers questions like "What would Y be if we <em>make</em> X happen?" ($P(Y|do(X))$). Example: "If we <em>give a patient a drug</em> that lowers their cholesterol, what will happen to their heart attack risk?" This is the level of controlled experiments and policy decisions.</li>
+                <li><strong>Counterfactuals (Imagining):</strong> This is the highest level, involving reasoning about what would have happened in a specific past instance had things been different. It answers questions like "What would have been the outcome for <em>this specific patient who took the drug and survived</em>, if they had not taken the drug?" This is the level of individual attribution and reflection.</li>
+            </ol>
+            <p>Standard machine learning operates only on Rung 1. Causal inference provides the mathematical tools to climb to Rungs 2 and 3.</p>
+
+            <h4>22.2 Structural Causal Models and the <em>do</em>-calculus</h4>
+            <p>The powerful framework of <strong>structural causal models (SCMs)</strong> provides the mathematical language for this ascent. An SCM represents the causal mechanisms of a system, often visualized as a <strong>directed acyclic graph (DAG)</strong> where arrows imply direct causation. This graph is not just a representation of statistical dependencies; it is a hypothesis about the underlying physical mechanisms.</p>
+            <p>The central distinction in this framework is between <em>seeing</em> and <em>doing</em>.</p>
+            
+            <blockquote>
+                <h5>Observation, $P(Y|X)$, vs. Intervention, $P(Y|do(X))$</h5>
+                <p>This is the most crucial concept in causality.</p>
+                <ul>
+                    <li><strong>Observation (Seeing):</strong> When we calculate the standard conditional probability, $P(\text{Shark Attacks} | \text{Ice Cream Sales = High})$, we are filtering our dataset. We look only at the days when ice cream sales were high and then calculate the frequency of shark attacks on those days. But since high ice cream sales are an indicator of hot weather, this filtered dataset is heavily biased towards hot days. We are passively observing the system as it naturally runs. Information can flow backwards along the arrows—observing high ice cream sales makes us infer it was probably a hot day.</li>
+                    <li><strong>Intervention (Doing):</strong> The <strong>do-operator</strong>, written as $P(\text{Shark Attacks} | do(\text{Ice Cream Sales = High}))$, asks a different question. It asks what would happen if we could perform a perfect experiment. Imagine we could magically force ice cream sales to be high on a random day, regardless of the weather (perhaps by giving away free ice cream on a cold day). To model this, we perform **"graph surgery"**: we take our causal graph and erase all arrows pointing <em>into</em> the variable we are intervening on. In our example, we would delete the arrow from `Hot Weather` to `Ice Cream Sales`. Now, `Ice Cream Sales` is disconnected from its cause. In this modified graph, the path from `Ice Cream Sales` to `Shark Attacks` is broken. Therefore, the intervention would have no effect on shark attacks, correctly showing that there is no causal link.</li>
+                </ul>
+            </blockquote>
+            
+            <p>This distinction is the mathematical formalization of a controlled experiment versus an observational study. The revolutionary contribution of this framework is the <strong>do-calculus</strong>, a set of formal rules that, given a causal graph describing the system's structure, allow us to determine if an interventional quantity like $P(Y | do(X=x))$ can be estimated from purely observational data, even without running the actual experiment. This process is called <strong>causal identification</strong>.</p>
+            <p>This is a revolutionary concept for physics and other observational sciences. In fields like astrophysics or geology, controlled experiments are often impossible. We cannot create a second universe without dark matter to see what happens. The framework of causal inference provides a formal procedure for determining when and how we can extract causal claims from non-experimental data, by forcing us to be explicit about our assumptions of the underlying causal structure of the universe. Integrating these principles with machine learning is a major frontier, aiming to build models that can not only predict but also provide valid answers to "what if" questions.</p>
+			
+			<blockquote>
+			<h4>A brief look at casuality analysis</h4>
+			<h5>1 The Potential Outcomes Framework</h5>
+            <p>The first rigorous mathematical framework for causality is the <strong>Potential Outcomes</strong> model, also known as the Neyman-Rubin Causal Model. It provides a precise language for defining a causal effect.</p>
+            <p>Let's consider a simple binary treatment, $T$, which can be either 1 (treated, e.g., given a drug) or 0 (control, e.g., given a placebo). For each individual subject $i$, we imagine that there are two "potential outcomes":</p>
+            <ul>
+                <li>$Y_i(1)$: The outcome that <em>would have been observed</em> if subject $i$ had received the treatment.</li>
+                <li>$Y_i(0)$: The outcome that <em>would have been observed</em> if subject $i$ had not received the treatment.</li>
+            </ul>
+            <p>The **individual causal effect** for subject $i$ is defined as the difference between these two potential outcomes: $\tau_i = Y_i(1) - Y_i(0)$.</p>
+            <p><strong>The Fundamental Problem of Causal Inference:</strong> It is impossible to observe both potential outcomes for the same individual at the same time. We can either give the drug to subject $i$ and observe $Y_i(1)$, or we can withhold it and observe $Y_i(0)$, but we can never observe both. We only ever see the factual outcome, not the **counterfactual** one.</p>
+            <p>Since we cannot calculate individual causal effects, we instead aim to estimate the <strong>Average Treatment Effect (ATE)</strong> across a population:</p>
+            $$ \text{ATE} = \mathbb{E}[Y(1) - Y(0)] = \mathbb{E}[Y(1)] - \mathbb{E}[Y(0)] $$
+            <p>The challenge is to estimate these two expected values from data.</p>
+            
+            <h5>2 Why Correlation Fails: Confounding Bias</h5>
+            <p>One might naively try to estimate the ATE by simply taking the difference in the average outcomes of the observed groups: $\mathbb{E}[Y | T=1] - \mathbb{E}[Y | T=0]$. This is a correlational quantity, not a causal one, and it is often deeply misleading.</p>
+            <p>The reason is **confounding**. A confounder is a variable $Z$ that causally affects both the treatment assignment $T$ and the outcome $Y$. In our "ice cream sales and shark attacks" example, "Hot Weather" is the confounder. In a medical setting, a confounder might be the "Severity of Illness." Patients who are sicker ($Z=1$) might be more likely to choose to take a drug ($T=1$) and are also more likely to have a bad outcome ($Y=1$).</p>
+            <p>Mathematically, the observed difference is not the true ATE:</p>
+            $$ \underbrace{\mathbb{E}[Y | T=1] - \mathbb{E}[Y | T=0]}_{\text{Observed Association}} \neq \underbrace{\mathbb{E}[Y(1)] - \mathbb{E}[Y(0)]}_{\text{True Causal Effect (ATE)}} $$
+            <p>The solution is to break the arrow from the confounder to the treatment. A **Randomized Controlled Trial (RCT)** does this perfectly. By assigning the treatment randomly, we ensure that $T$ is statistically independent of any pre-existing confounder $Z$. This makes the two groups statistically identical on average, ensuring that any observed difference in outcome must be due to the treatment itself. In an RCT, the association equals causation.</p>
+            
+            <h5>3 Structural Causal Models (SCMs) for Observational Data</h5>
+            <p>When we cannot run an experiment, as is often the case in physics, we must rely on observational data. The SCM framework, pioneered by Judea Pearl, allows us to reason about causality by making our physical assumptions explicit in the form of a graph.</p>
+            <p>An SCM consists of:</p>
+            <ul>
+                <li>A set of variables.</li>
+                <li>A <strong>Directed Acyclic Graph (DAG)</strong> where arrows represent direct causal mechanisms.</li>
+                <li>A set of functions, one for each variable, that determines its value based on its parents in the graph.</li>
+            </ul>
+            <p>This framework introduces the powerful <strong>do-operator</strong> to distinguish between seeing and doing. The quantity $\mathbb{E}[Y | T=t]$ is an observation, while the causal effect we want is the intervention, $\mathbb{E}[Y | do(T=t)]$. The $do(T=t)$ operator simulates an intervention by performing "graph surgery": we delete all arrows pointing into $T$ and fix its value to $t$.</p>
+            <p>The goal is then to find a way to express the interventional quantity $P(Y|do(T=t))$ in terms of standard observational probabilities that we can measure from our data. This is called **causal identification**. A key formula for achieving this in the presence of a confounder $Z$ is the **backdoor adjustment formula**:</p>
+            $$ P(Y=y | do(T=t)) = \sum_z P(Y=y | T=t, Z=z) P(Z=z) $$
+            <p>This formula tells us how to correctly "adjust" for the confounder. We calculate the effect of the treatment within each slice (stratum) of the confounding variable $Z$, and then we average those effects, weighted by the prevalence of each stratum in the overall population. This removes the spurious correlation introduced by the confounder and allows us to estimate the causal effect from observational data, provided our causal graph is correct.</p>
+
+            <h5>4 Causality in Machine Learning</h5>
+            <p>The intersection of causality and machine learning is a rapidly growing frontier. Key areas include:</p>
+            <ul>
+                <li><strong>Causal Discovery:</strong> Using ML algorithms to try to discover the correct causal graph from data in the first place. This is an incredibly difficult but important task.</li>
+                <li><strong>Estimating Heterogeneous Effects:</strong> Using ML models like random forests (often called "causal forests") to estimate how the causal effect of a treatment varies across different subpopulations.</li>
+                <li><strong>Off-Policy Evaluation in RL:</strong> The problem of estimating the effect of a new policy without actually deploying it is a causal question, and these formalisms are essential for solving it.</li>
+            </ul>
+            <p>By incorporating the language of causality, we can move machine learning from being a purely predictive tool to one that can aid in genuine scientific understanding and robust decision-making.</p>
+			</blockquote>
+        </main>
+        
+        <hr>
+        
+        <nav class="navigation-links" style="display: flex; justify-content: space-between;">
+            <a href="ch21.html">← Chapter 21</a>
+            <a href="ch23.html">Chapter 23: Interpretability and Explainable AI →</a>
+        </nav>
+    </div>
+
+</body>
+</html>

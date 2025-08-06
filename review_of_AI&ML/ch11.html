@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 11: CNNs | AI for the Physicist</title>
+    
+    <link rel="stylesheet" href="css/style.css">
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true},{left: '$', right: '$', display: false}]});"></script>
+
+    <!-- Mermaid.js for rendering diagrams -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({startOnLoad:true});</script>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <p><a href="index.html">← Back to Table of Contents</a></p>
+            <h2>Chapter 11: Convolutional Neural Networks (CNNs) – Exploiting the Symmetry of Translation</h2>
+        </header>
+
+        <main>
+            <p>Convolutional Neural Networks (CNNs or ConvNets) are the dominant architecture for processing grid-like data. Their invention was a pivotal moment in the history of deep learning, leading to breakthroughs in image recognition, and their principles have been applied to any data with a regular spatial structure, from spectrograms in audio processing to lattice field theory configurations in physics. Their design is a masterful implementation of physical principles like locality, symmetry, and hierarchical representation.</p>
+
+            <h4>11.1 The Convolution Operation: A Local, Equivariant Operator</h4>
+            <p>In a standard feedforward network (an MLP), each neuron in a layer is connected to <em>every</em> neuron in the previous layer. This is called a fully-connected or dense layer. For even a small $100 \times 100$ pixel image (10,000 input neurons), a single hidden neuron in the next layer would require 10,000 weights. This is computationally expensive and statistically inefficient, as it ignores the crucial spatial structure of the image. A pixel's meaning is highly dependent on its neighbors, not on a pixel on the opposite side of the image.</p>
+            <p>CNNs solve this by replacing the dense matrix multiplication of an MLP with the <strong>convolution operation</strong>. A convolution layer uses a small filter (or <strong>kernel</strong>), which is a small matrix of learnable weights (e.g., $3 \times 3$). This kernel is slid across the input data, and at each position, the element-wise product between the kernel's weights and the input patch under it is computed and summed. This sum forms a single value in the output <strong>feature map</strong>.</p>
+            
+            <blockquote>
+                <p><strong>A Simple 1D Convolution Example:</strong></p>
+                <p>Imagine your input is a simple 1D signal: `Input = [2, 8, 3, 4, 1, 9, 5]`</p>
+                <p>And you have a 3-element kernel (filter), which is a learned edge detector: `Kernel = [1, 0, -1]`</p>
+                <p>To compute the output, you slide the kernel across the input:</p>
+                <ul>
+                    <li>Position 1: `(2*1) + (8*0) + (3*-1) = 2 - 3 = -1`</li>
+                    <li>Position 2: `(8*1) + (3*0) + (4*-1) = 8 - 4 = 4`</li>
+                    <li>Position 3: `(3*1) + (4*0) + (1*-1) = 3 - 1 = 2`</li>
+                    <li>...and so on.</li>
+                </ul>
+                <p>The final output feature map would be `[-1, 4, 2, -5, 4]`. Notice how the kernel produced a large positive value at `[8, 3, 4]` where there was a sharp drop, effectively detecting a "downward edge."</p>
+            </blockquote>
+
+            <p>This operation enforces two crucial constraints, which act as powerful <strong>inductive biases</strong>:</p>
+            <ol>
+                <li><strong>Locality:</strong> Each output neuron is connected only to a small, local region of the input (the "receptive field"), defined by the size of the kernel. This reflects the physical principle that most interactions are local.</li>
+                <li><strong>Weight Sharing:</strong> The <em>same</em> kernel (the same set of weights) is applied across every position of the input. Instead of learning a separate detector for a feature (like a vertical edge) at every possible location, the network learns a single kernel for that feature and applies it everywhere.</li>
+            </ol>
+            <p>The consequence of weight sharing is <strong>translation equivariance</strong>. This is a direct architectural implementation of <strong>translation symmetry</strong>, a fundamental concept in physics. It means that if an object in the input image shifts, its representation in the output feature map will also shift by the same amount, but the representation itself (the pattern of activations) will be the same. The network doesn't have to waste its capacity learning the same feature over and over again in different locations; this prior knowledge is hard-coded into its structure, making learning vastly more efficient.</p>
+
+            <h4>11.2 Pooling and the Renormalization Group Analogy</h4>
+            <p>After a convolution layer, it is common to apply a <strong>pooling</strong> operation (e.g., max-pooling). A pooling layer reduces the spatial dimensions of the feature maps. For example, a $2 \times 2$ max-pooling operation slides a $2 \times 2$ window across the feature map and, for each window, outputs only the maximum value, effectively downsampling the feature map by a factor of 2.</p>
+            <p>This operation serves two important purposes:</p>
+            <ol>
+                <li>It introduces a degree of <strong>local translation invariance</strong>. If a feature moves slightly within the pooling window, the output will likely remain unchanged, making the representation more robust.</li>
+                <li>It creates a <strong>hierarchical representation of features</strong>. By reducing the spatial resolution, subsequent layers operate on a more coarse-grained view of the data, allowing the network to build features from simple to complex.</li>
+            </ol>
+			<blockquote>
+                <h4>In-Depth: Pooling vs. Convolution — What's the Difference?</h4>
+                <p>Both using a "sliding window," but they are fundamentally different in what they do, how they work, and why they are used. A convolution is a <strong>learned feature detector</strong>, while pooling is a <strong>fixed downsampling operator</strong>.</p>
+                <p>Let's compare them head-to-head:</p>
+                
+                <table style="width:100%; border-collapse: collapse;">
+                    <tr style="background-color:#edebe4;">
+                        <th style="padding: 8px; border: 1px solid #dcd9d1; text-align: left;">Aspect</th>
+                        <th style="padding: 8px; border: 1px solid #dcd9d1; text-align: left;">Convolution</th>
+                        <th style="padding: 8px; border: 1px solid #dcd9d1; text-align: left;">Pooling (e.g., Max Pooling)</th>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; border: 1px solid #dcd9d1;"><strong>Operation Type</strong></td>
+                        <td style="padding: 8px; border: 1px solid #dcd9d1;">A linear operation: a weighted sum (dot product) of the input patch and the kernel.</td>
+                        <td style="padding: 8px; border: 1px solid #dcd9d1;">A non-linear operation: a fixed selection rule (e.g., finding the maximum value).</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; border: 1px solid #dcd9d1;"><strong>Parameters</strong></td>
+                        <td style="padding: 8px; border: 1px solid #dcd9d1;"><strong>Has learnable parameters.</strong> The weights in the kernel are the parameters that are learned during training via backpropagation.</td>
+                        <td style="padding: 8px; border: 1px solid #dcd9d1;"><strong>Has no learnable parameters.</strong> It's a fixed, hard-coded operation. Max pooling will always just take the max.</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; border: 1px solid #dcd9d1;"><strong>Purpose</strong></td>
+                        <td style="padding: 8px; border: 1px solid #dcd9d1;"><strong>Feature Detection.</strong> To identify specific patterns like edges, corners, textures, etc. The network <em>learns</em> what patterns are important.</td>
+                        <td style="padding: 8px; border: 1px solid #dcd9d1;"><strong>Downsampling & Local Invariance.</strong> To reduce the size of the feature map and make the representation robust to small shifts in the feature's position.</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px; border: 1px solid #dcd9d1;"><strong>Effect on Channels</strong></td>
+                        <td style="padding: 8px; border: 1px solid #dcd9d1;">Typically increases the number of channels (depth). You apply many different kernels to create many new feature maps.</td>
+                        <td style="padding: 8px; border: 1px solid #dcd9d1;">Operates on each channel independently and keeps the number of channels the same.</td>
+                    </tr>
+                </table>
+
+                <h5>A Concrete Numerical Example</h5>
+                <p>Let's use the same 4x4 input feature map for both operations. Let's use a 2x2 window for both our kernel and our pooling size.</p>
+                <p><strong>Input Feature Map:</strong></p>
+                $$ \begin{pmatrix} 
+                1 & 2 & 5 & 2 \\ 
+                8 & 1 & 3 & 0 \\ 
+                4 & 2 & 1 & 1 \\
+                0 & 6 & 2 & 4
+                \end{pmatrix} $$
+                
+                <p><strong>1. The Convolution Operation</strong></p>
+                <p>Let's say our network has learned a simple 2x2 kernel: 
+                $ \text{Kernel} = \begin{pmatrix} 1 & 0 \\ 2 & 1 \end{pmatrix} $. To compute the top-left value of the output feature map, we perform a dot product:</p>
+                $$ \text{Output}(0,0) = (1\times1) + (2\times0) + (8\times2) + (1\times1) = 1 + 0 + 16 + 1 = \mathbf{18} $$
+                <p>The network slides this kernel over the entire input to produce a new feature map. The key is that the values in the kernel (1, 0, 2, 1) were <em>learned</em>.</p>
+
+                <p><strong>2. The Max Pooling Operation</strong></p>
+                <p>Max pooling has no kernel weights. It just has a window size (2x2) and a rule ("take the maximum"). We apply this rule to non-overlapping 2x2 patches of the input:</p>
+                <ul>
+                    <li><strong>Top-Left Patch:</strong> $ \begin{pmatrix} 1 & 2 \\ 8 & 1 \end{pmatrix} \rightarrow \max(1, 2, 8, 1) = \mathbf{8} $</li>
+                    <li><strong>Top-Right Patch:</strong> $ \begin{pmatrix} 5 & 2 \\ 3 & 0 \end{pmatrix} \rightarrow \max(5, 2, 3, 0) = \mathbf{5} $</li>
+                    <li><strong>Bottom-Left Patch:</strong> $ \begin{pmatrix} 4 & 2 \\ 0 & 6 \end{pmatrix} \rightarrow \max(4, 2, 0, 6) = \mathbf{6} $</li>
+                    <li><strong>Bottom-Right Patch:</strong> $ \begin{pmatrix} 1 & 1 \\ 2 & 4 \end{pmatrix} \rightarrow \max(1, 1, 2, 4) = \mathbf{4} $</li>
+                </ul>
+                <p>The final output after pooling is a much smaller 2x2 feature map:</p>
+                $$ \begin{pmatrix} 8 & 5 \\ 6 & 4 \end{pmatrix} $$
+                <p>Notice how this output simply summarizes the most prominent feature activation in each quadrant of the original map, while drastically reducing its size.</p>
+
+                <p><strong>Conclusion: Complementary Roles</strong></p>
+                <p>Convolution and Pooling are a team. The convolution layers act as learned, sophisticated pattern finders. Their job is to create feature maps where high values indicate the presence of an important pattern. The pooling layers then act as a "summarizer," reducing the spatial size and making the representation more manageable and robust, preparing it for the next layer of feature detectors.</p>
+            </blockquote>
+            <p>This hierarchical coarse-graining is deeply analogous to a <strong>real-space renormalization group (RG) transformation</strong> in statistical physics. In RG, one systematically integrates out, or "coarse-grains," microscopic degrees of freedom (e.g., averaging a block of spins) to find the "effective theory" that governs the system at larger length scales. This process reveals how the system behaves at different scales and identifies the relevant degrees of freedom that govern macroscopic physics.</p>
+            
+            <div class="figure">
+                <div class="mermaid">
+                    graph TD
+                        subgraph "CNN Hierarchy"
+                            direction LR
+                            A["Input Image<br>(Pixels)"] --> B["Layer 1<br>Detects Edges"]
+                            B --> C["Layer 2<br>Detects Textures, Parts"]
+                            C --> D["Deep Layers<br>Detects Objects"]
+                        end
+                        
+                        subgraph "Renormalization Group (RG) Analogy"
+                            direction LR
+                            F["Microscopic Lattice<br>(Spins)"] --> G["Step 1: Coarse-grain<br>Finds effective couplings"]
+                            G --> H["Step 2: Coarse-grain<br>Flow towards fixed point"]
+                            H --> I["Macroscopic Scale<br>(Phase Behavior)"]
+                        end
+                </div>
+                <p class="caption"><b>Figure 11.1:</b> The powerful analogy between the hierarchical structure of a CNN and an RG flow. Both processes involve a series of local interaction steps (convolution) followed by a coarse-graining step (pooling), which builds up a representation of the system from fine to coarse scales, revealing emergent, large-scale properties.</p>
+            </div>
+            
+            <h5>Modern Architectures (e.g., ResNet)</h5>
+            <p>Early CNNs simply stacked convolution and pooling layers. However, as networks got deeper, they encountered the <strong>vanishing gradient problem</strong>: during backpropagation, the gradients would become exponentially smaller as they passed through many layers, making it impossible to train the early layers effectively.</p>
+            <p>A major breakthrough was the <strong>Residual Network (ResNet)</strong>. The key innovation is the "residual connection" or "skip connection." Instead of tasking a block of layers with learning a direct mapping $H(\mathbf{x})$, it is tasked with learning a residual function $F(\mathbf{x}) = H(\mathbf{x}) - \mathbf{x}$. The output of the block is then $F(\mathbf{x}) + \mathbf{x}$. The original input $\mathbf{x}$ is passed through via an identity "skip connection" and added to the output of the convolutional layers.</p>
+            <p>This seemingly simple change has a profound effect. It ensures that there is always a direct, "short-circuited" path for the gradient to flow backward through the identity connection, mitigating the vanishing gradient problem. It also makes it trivial for a block of layers to learn an identity mapping (by just driving the weights of $F(\mathbf{x})$ to zero), which means that adding more layers should never hurt performance. This innovation allowed for the training of extremely deep networks (hundreds or even thousands of layers deep), leading to another leap in performance on computer vision tasks.</p>
+			<h4>11.3 A Complete CNN Architecture: From Pixels to Prediction</h4>
+            <p>We've discussed the key building blocks: the convolution layer for feature detection and the pooling layer for downsampling. A complete Convolutional Neural Network combines these blocks into a coherent architecture to go from raw input (like an image) to a final prediction (like a class label).</p>
+
+            <h5>The Overall Structure</h5>
+            <p>A typical CNN used for image classification has two main parts:</p>
+            <ol>
+                <li><strong>The Feature Extractor (Convolutional Base):</strong> This part consists of a stack of alternating convolution and pooling layers. Its job is to take the raw, high-dimensional input image and transform it into a small, low-dimensional, but feature-rich representation. As data flows through this base, its spatial dimensions (height and width) shrink, while its depth (number of channels or feature maps) typically grows. This is the part that builds the hierarchical representation of features, from simple edges in the first layers to complex object parts in later layers.</li>
+                <li><strong>The Classifier (Fully-Connected Head):</strong> The output of the convolutional base is a small, deep feature map. This map is "flattened" into a single long vector. This vector is then fed into a standard Multi-Layer Perceptron (MLP), like the ones we saw in Chapter 10. This MLP head acts as the final classifier. Its job is to take the rich features extracted by the convolutional base and learn the non-linear combinations of those features that are needed to make the final prediction.</li>
+            </ol>
+            
+            <div class="figure">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/6/63/Typical_cnn.png" width="700" alt="Sigmoid Function">
+                <p class="caption"><b>Figure 11.2:</b> The architecture of a typical CNN. A convolutional base of Conv/Pool layers extracts hierarchical features, which are then flattened and passed to a fully-connected MLP for final classification.</p>
+            </div>
+
+            <h5>Activation Functions in CNNs</h5>
+            <p>Just like in MLPs, a non-linear activation function is applied after each convolution operation. While early work used sigmoid or tanh functions, modern deep CNNs almost exclusively use the <strong>Rectified Linear Unit (ReLU)</strong>:</p>
+            $$ \text{ReLU}(z) = \max(0, z) $$
+            <p>The reasons for its dominance are primarily computational and empirical:</p>
+            <ul>
+                <li><strong>Mitigates Vanishing Gradients:</strong> For positive inputs, the derivative of ReLU is simply 1. This means gradients can flow backward through many layers without shrinking, which was a major problem for sigmoid/tanh functions whose gradients are close to zero for large positive or negative inputs.</li>
+                <li><strong>Computational Efficiency:</strong> ReLU is extremely cheap to compute—it's just a simple thresholding operation.</li>
+                <li><strong>Sparsity:</strong> Because it outputs zero for all negative inputs, ReLU naturally leads to sparse activations in the network, meaning only a subset of neurons are "active" for any given input. This can make the network more efficient and robust.</li>
+            </ul>
+
+            <h5>Loss Function and Training</h5>
+            <p>The training process for a CNN is fundamentally the same as for an MLP. We use gradient descent and backpropagation to minimize a loss function.</p>
+            <ol>
+                <li><strong>Forward Pass:</strong> An input image is passed through the entire network (conv base and classifier head) to produce a final prediction vector. For a 10-class classification problem, this might be a vector of 10 numbers from a final softmax layer, representing the predicted probability for each class.</li>
+                <li><strong>Compute Loss:</strong> The predicted probabilities are compared to the true label (which is a one-hot encoded vector, e.g., `[0,0,1,0,0,0,0,0,0,0]` for class 2) using a <strong>Cross-Entropy Loss</strong> function. This measures the error of the prediction.</li>
+                <li><strong>Backward Pass (Backpropagation):</strong> The gradient of this loss is computed with respect to all the learnable parameters in the network. This includes the weights in the MLP head and, crucially, the weights in all the convolutional kernels in the feature extractor. The chain rule works its way backward through all the layers.</li>
+                <li><strong>Update Weights:</strong> All parameters are updated with a small step in the direction of their negative gradient using an optimizer like Adam or SGD with momentum.</li>
+            </ol>
+            <p>This cycle is repeated for thousands or millions of mini-batches of images until the network's parameters converge to a set that minimizes the loss on the training data and, hopefully, generalizes well to unseen images.</p>
+        </main>
+        
+        <hr>
+        
+        <nav class="navigation-links" style="display: flex; justify-content: space-between;">
+            <a href="ch10.html">← Chapter 10</a>
+            <a href="ch12.html">Chapter 12: Modeling Dynamics →</a>
+        </nav>
+    </div>
+
+</body>
+</html>

@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 7: Unsupervised Learning | AI for the Physicist</title>
+    
+    <link rel="stylesheet" href="css/style.css">
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true},{left: '$', right: '$', display: false}]});"></script>
+
+    <!-- Mermaid.js for rendering diagrams -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({startOnLoad:true});</script>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <p><a href="index.html">← Back to Table of Contents</a></p>
+            <h2>Chapter 7: Unsupervised Learning – Discovering Latent Structure</h2>
+        </header>
+
+        <main>
+            <p>This chapter addresses the challenge of finding meaningful patterns in data without the guidance of explicit labels. This task is fundamental to scientific inquiry and is analogous to a physicist discovering the underlying principles, phases, or effective degrees of freedom of a system from raw observational data alone.</p>
+
+            <h4>7.1 Dimensionality Reduction: Finding Collective Coordinates</h4>
+            <p>High-dimensional datasets are often difficult to work with due to the <strong>curse of dimensionality</strong>. As the number of features $d$ grows, the volume of the space grows exponentially, causing the data to become sparse. However, as discussed under the manifold hypothesis (Section 1.5), the data often has an intrinsically lower-dimensional structure. The goal of dimensionality reduction is to find a compact, low-dimensional representation of the data that captures its most important features.</p>
+
+            <h5>Principal Component Analysis (PCA)</h5>
+            <p>PCA is a cornerstone of unsupervised learning for finding the orthogonal directions of maximal variance in a dataset. The central physical analogy for PCA is that it identifies the <strong>collective coordinates</strong> or <strong>normal modes</strong> of a system. Imagine a dataset consisting of the 3D positions of many atoms in a vibrating molecule over time. While each atom's position is a variable, their motions are not independent. The first principal component would likely correspond to the dominant collective motion of the entire system (e.g., a primary vibrational mode). The second would capture the next most significant mode of variation orthogonal to the first, and so on.</p>
+            <p><strong>Mathematical Formulation:</strong></p>
+            <ol>
+                <li><strong>Center the Data:</strong> For each feature, subtract its mean. This shifts the origin of the coordinate system to the center of the data cloud.</li>
+                <li><strong>Compute the Covariance Matrix:</strong> The covariance matrix $\mathbf{C}$ measures how features vary with respect to each other. The diagonal elements are the variances of each feature, and the off-diagonal elements indicate how two features change together. A large positive covariance means they tend to increase together; a large negative means one tends to increase as the other decreases.</li>
+                $$ \mathbf{C} = \frac{1}{N-1} \mathbf{X}^T\mathbf{X} $$
+                <li><strong>Find Eigenvectors and Eigenvalues:</strong> PCA finds the eigenvectors and eigenvalues of this covariance matrix.
+                    <ul>
+                        <li>The <strong>eigenvectors</strong> of $\mathbf{C}$ are the "principal components." They are a new set of orthogonal axes for the data. The first principal component (PC1) is the eigenvector corresponding to the largest eigenvalue. This is the direction in space along which the data varies the most.</li>
+                        <li>The <strong>eigenvalue</strong> associated with each eigenvector tells us how much variance is captured along that new axis.</li>
+                    </ul>
+                </li>
+                <li><strong>Project the Data:</strong> To reduce the dimensionality from $d$ to $k$, we select the $k$ eigenvectors with the largest eigenvalues. We then project our original data points onto the new subspace spanned by these $k$ vectors. This projection optimally preserves the variance of the original data in just $k$ dimensions.</li>
+            </ol>
+            
+            <h5>Manifold Learning (t-SNE, UMAP)</h5>
+            <p>What if the data's intrinsic structure is not a flat subspace but a curved, lower-dimensional <strong>manifold</strong>? Linear methods like PCA will fail to capture this true structure. Manifold learning techniques are non-linear methods designed to "unfold" these curved manifolds into a low-dimensional space (typically 2D or 3D for visualization).</p>
+            <blockquote>
+                <p><strong>Intuitive Analogy:</strong> Imagine you're a party planner. You have a complex list of who is friends with whom (high-dimensional similarity data). Your task is to arrange everyone in a 2D room for a party. You would want to place close friends near each other and people who don't know each other further apart. t-SNE and UMAP are algorithms that do exactly this: they try to create a low-dimensional "map" of the data points that preserves the local neighborhood structure from the original high-dimensional space.</p>
+            </blockquote>
+            <p><strong>t-SNE (t-Distributed Stochastic Neighbor Embedding)</strong> models pairwise similarities between points in both the high-D and low-D spaces and tries to minimize the difference between these two similarity distributions using the KL divergence. It is excellent at revealing local cluster structure but a crucial warning is necessary: the global arrangement and distances <em>between</em> clusters in a t-SNE plot are often not meaningful and can be misleading.</p>
+            <p><strong>UMAP (Uniform Manifold Approximation and Projection)</strong> is a more recent algorithm with a stronger mathematical foundation in topology. It is often much faster than t-SNE and tends to preserve the global structure of the data more faithfully, making it a modern first-choice for exploratory data visualization.</p>
+            
+            <h4>7.2 Clustering: Phase Identification in Data</h4>
+            <p>Clustering algorithms aim to partition a dataset into distinct groups or "clusters" such that points within a cluster are more similar to each other than to those in other clusters. This is the computational equivalent of <strong>phase identification</strong> in a physical system. Given a set of particle configurations from a simulation, clustering could automatically identify which configurations belong to the solid, liquid, or gas phase.</p>
+
+            <h5>K-Means Clustering: Center of Mass Finding</h5>
+            <p>This is one of the simplest and most widely used clustering algorithms. It partitions the data into a pre-specified number of clusters, $K$, by finding cluster centers (centroids) that minimize the within-cluster sum of squares (inertia).</p>
+            <p><strong>The Algorithm:</strong></p>
+            <ol>
+                <li><strong>Initialization</strong>: Randomly choose $K$ data points to serve as the initial cluster centroids.</li>
+                <li><strong>Iterative Refinement</strong>: Repeat until convergence:
+                    <ol type="a">
+                        <li><strong>Assignment Step</strong>: For each data point, assign it to the cluster with the nearest centroid. This is like calculating the gravitational field and assigning each point to the nearest massive body.</li>
+                        <li><strong>Update Step</strong>: Recalculate the centroid of each cluster as the mean (the <strong>center of mass</strong>) of all the points now assigned to it.</li>
+                    </ol>
+                </li>
+            </ol>
+            <blockquote>
+                <p><strong>A Simple Example:</strong> Suppose we have data points at (1,1), (1,2), (5,5), (6,5) and want to find $K=2$ clusters.</p>
+                <ol>
+                    <li><strong>Init:</strong> Let's randomly pick centroids at $C_1=(1,1)$ and $C_2=(5,5)$.</li>
+                    <li><strong>Iteration 1 - Assignment:</strong>
+                        <ul>
+                            <li>(1,2) is closer to $C_1$. Cluster 1: {(1,1), (1,2)}.</li>
+                            <li>(6,5) is closer to $C_2$. Cluster 2: {(5,5), (6,5)}.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Iteration 1 - Update:</strong>
+                        <ul>
+                            <li>New $C_1$: mean of {(1,1), (1,2)} is $(1, 1.5)$.</li>
+                            <li>New $C_2$: mean of {(5,5), (6,5)} is $(5.5, 5)$.</li>
+                        </ul>
+                    </li>
+                    <li><strong>Iteration 2 - Assignment:</strong> The assignments don't change. The algorithm has converged.</li>
+                </ol>
+            </blockquote>
+            <p>K-Means is fast but has limitations: it requires knowing $K$ in advance and assumes clusters are spherical.</p>
+
+<h5>DBSCAN: Phase Condensation</h5>
+            <p>This algorithm takes a completely different, density-based approach. It is strongly analogous to identifying gravitationally bound structures in the universe: some stars are tightly packed into galaxies (clusters), while others are isolated field stars (noise). DBSCAN is designed to discover these dense "galaxies" of data automatically.</p>
+            <p><strong>The Core Idea:</strong> DBSCAN defines clusters as continuous regions of high point density, separated by regions of low density. It does this based on two simple, intuitive parameters:</p>
+            <ul>
+                <li><code>eps</code> ($\epsilon$): The "neighborhood radius." This is a distance value that defines how close two points have to be to be considered neighbors.</li>
+                <li><code>MinPts</code>: The "density threshold." This is the minimum number of points (including the point itself) that must be inside a point's $\epsilon$-neighborhood for it to be considered part of a dense region.</li>
+            </ul>
+            
+            <p><strong>The DBSCAN Algorithm Workflow</strong></p>
+            <p>The algorithm iterates through every point in the dataset, assigning it to a cluster or marking it as noise. It uses a `Cluster_ID` counter, starting at 0.</p>
+            <ol>
+                <li><strong>Loop through all points:</strong> For each point `P` in the dataset:</li>
+                <li>If `P` has already been visited (i.e., assigned to a cluster or marked as noise), skip it and go to the next point.</li>
+                <li>Mark `P` as visited.</li>
+                <li><strong>Find neighbors:</strong> Find all points within distance $\epsilon$ of `P`. Let's call this set `Neighbors`.</li>
+                <li><strong>Check for density:</strong>
+                    <ul>
+                        <li>If the number of points in `Neighbors` is less than `MinPts`, then `P` is not dense enough to start a new cluster. Mark `P` as a <strong>Noise Point</strong> and continue to the next point in the main loop.</li>
+                        <li>If the number of points in `Neighbors` is greater than or equal to `MinPts`, then `P` is a <strong>Core Point</strong>. It's time to grow a new cluster!</li>
+                    </ul>
+                </li>
+                <li><strong>Grow the cluster:</strong>
+                    <ol type="a">
+                        <li>Increment the `Cluster_ID` (e.g., from 0 to 1).</li>
+                        <li>Assign `P` to the new `Cluster_ID`.</li>
+                        <li>Create a queue of points to visit, and add all points from `P`'s `Neighbors` to this queue.</li>
+                        <li>While the queue is not empty:
+                            <ul>
+                                <li>Take the next point, `Q`, from the queue.</li>
+                                <li>If `Q` has not been visited, mark it as visited, find *its* neighbors, and if `Q` turns out to be a core point itself, add all of its new, unvisited neighbors to the queue. This is the chain reaction that expands the cluster.</li>
+                                <li>If `Q` is not yet a member of any cluster, assign it to the current `Cluster_ID`. A non-core point that gets assigned this way becomes a <strong>Border Point</strong>.</li>
+                            </ul>
+                        </li>
+                    </ol>
+                </li>
+            </ol>
+            <p>At the end of this process, every point will be assigned to a specific cluster or will be labeled as noise. DBSCAN's key advantages are its ability to find clusters of arbitrary shapes and its robustness to noise.</p>
+            
+            <h5>Gaussian Mixture Models (GMMs): Probabilistic Phase Assignment</h5>
+            <p><strong>The Core Idea: Soft vs. Hard Clustering</strong></p>
+            <p>K-Means and DBSCAN perform "hard" clustering. They assign each data point to exactly one cluster. A GMM offers a more nuanced, probabilistic, or "soft" approach. It assumes that the data is generated from a mixture of several Gaussian distributions, each representing a cluster. Instead of a definite assignment, a GMM gives the <strong>probability</strong> that each point belongs to each of the clusters.</p>
+            
+            <p><strong>The Expectation-Maximization (EM) Algorithm Workflow</strong></p>
+            <p>The goal is to find the parameters of these mixed Gaussians: their means ($\mu_k$), covariances ($\Sigma_k$), and their weights in the total mixture ($\pi_k$). The EM algorithm is an iterative process to find these parameters.</p>
+            
+            <ol>
+                <li><strong>Step 1: Initialization</strong>
+                    <p>Start with a random guess for the parameters $\{\pi_k, \mu_k, \Sigma_k\}$ for each of the $K$ clusters. (A common way to get a good initial guess is to first run K-Means and use its results).</p>
+                </li>
+                <li><strong>Step 2: The Expectation (E) Step - "Guessing the assignments"</strong>
+                    <p>In this step, we use our current model parameters to calculate the "responsibilities." The responsibility, $\gamma_{ik}$, is the posterior probability that cluster $k$ is responsible for generating data point $i$. It's a soft assignment. For each data point $\mathbf{x}_i$ and each cluster $k$, we calculate:</p>
+                    $$ \gamma_{ik} = p(z_i=k | \mathbf{x}_i) = \frac{\pi_k \mathcal{N}(\mathbf{x}_i | \boldsymbol{\mu}_k, \mathbf{\Sigma}_k)}{\sum_{j=1}^K \pi_j \mathcal{N}(\mathbf{x}_i | \boldsymbol{\mu}_j, \mathbf{\Sigma}_j)} $$
+                    <p>Here, $\mathcal{N}(\mathbf{x}_i | \mu_k, \Sigma_k)$ is the probability density of point $\mathbf{x}_i$ under the Gaussian for cluster $k$. The formula is just Bayes' theorem: the posterior is proportional to the prior ($\pi_k$) times the likelihood ($\mathcal{N}(\dots)$), normalized by the sum over all possible clusters.</p>
+                </li>
+                <li><strong>Step 3: The Maximization (M) Step - "Updating the model"</strong>
+                    <p>In this step, we use the responsibilities (our soft assignments) from the E-step to update our model parameters to a better estimate. We recalculate the parameters for each cluster $k$ using weighted versions of the standard formulas:</p>
+                    <ul>
+                        <li><strong>Update weights:</strong> The new weight for a cluster is the average responsibility it takes for all data points. Let $N_k = \sum_{i=1}^N \gamma_{ik}$ be the effective number of points in cluster $k$.
+                        $$ \pi_k^{\text{new}} = \frac{N_k}{N} $$</li>
+                        <li><strong>Update means:</strong> The new mean is the weighted average of all data points, where the weights are the responsibilities.
+                        $$ \boldsymbol{\mu}_k^{\text{new}} = \frac{1}{N_k} \sum_{i=1}^N \gamma_{ik} \mathbf{x}_i $$</li>
+                        <li><strong>Update covariances:</strong> The new covariance is the weighted average of the outer product of the deviations from the mean.
+                        $$ \mathbf{\Sigma}_k^{\text{new}} = \frac{1}{N_k} \sum_{i=1}^N \gamma_{ik} (\mathbf{x}_i - \boldsymbol{\mu}_k^{\text{new}})(\mathbf{x}_i - \boldsymbol{\mu}_k^{\text{new}})^T $$</li>
+                    </ul>
+                </li>
+                <li><strong>Step 4: Iterate</strong>
+                    <p>Repeat the E-step and M-step until the parameters of the model stabilize (i.e., they don't change much between iterations). The final model provides the parameters for each Gaussian cluster and can be used to calculate the soft assignment probabilities for any data point.</p>
+                </li>
+            </ol>
+        </main>
+        
+        <hr>
+        
+        <nav class="navigation-links" style="display: flex; justify-content: space-between;">
+            <a href="ch6.html">← Chapter 6</a>
+            <a href="ch8.html">Chapter 8: Probabilistic Graphical Models →</a>
+        </nav>
+    </div>
+
+</body>
+</html>

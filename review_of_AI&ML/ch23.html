@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 23: Interpretability and XAI | AI for the Physicist</title>
+    
+    <link rel="stylesheet" href="css/style.css">
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true},{left: '$', right: '$', display: false}]});"></script>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <p><a href="index.html">← Back to Table of Contents</a></p>
+            <h2>Chapter 23: Interpretability and Explainable AI (XAI)</h2>
+        </header>
+
+        <main>
+            <p>As machine learning models, particularly deep neural networks, become more complex and achieve superhuman performance, they often become more opaque. The "black box" nature of these models poses a significant problem in science, where the goal is not just prediction but understanding. If a deep learning model discovers a new type of supernova from telescope data, scientists will want to know <em>why</em> it classified it as such. What features in the light curve did it look at? What is the underlying pattern it discovered? <strong>Explainable AI (XAI)</strong> is a field dedicated to developing methods to open this black box and make model decisions transparent and trustworthy.</p>
+
+            <h4>23.1 Saliency and Feature Attribution Methods</h4>
+            <p>These are some of the simplest and most common XAI techniques, primarily used for models that take grid-like data (like images or spectrograms) as input. A <strong>saliency map</strong> is an image that highlights the pixels or input features that were most important for a given prediction. It tries to answer the question: "What part of the input did the model look at to make its decision?"</p>
+            
+            <p>A basic method is to compute the <strong>gradient of the model's output score</strong> (e.g., the logit for the predicted class) with respect to the input image pixels. The idea is that pixels with a large gradient magnitude are more "salient," as a small change in that pixel would cause a large change in the output score. However, these simple gradient maps can be noisy and misleading.</p>
+            <p>More advanced methods provide more robust visualizations:</p>
+            <ul>
+                <li><strong>Integrated Gradients:</strong> This method addresses the saturation problem of simple gradients (where the gradient can be zero even if the feature is important) by integrating the gradient along a straight-line path from a baseline input (e.g., a black image) to the actual input image.</li>
+                <li><strong>Grad-CAM (Gradient-weighted Class Activation Mapping):</strong> This technique produces a coarser, but often more human-interpretable, localization map by looking at the importance of the final feature maps in a CNN. It highlights the high-level concepts the network used to make its decision.</li>
+            </ul>
+
+            <h4>23.2 SHAP (SHapley Additive exPlanations)</h4>
+            <p>SHAP is a powerful, model-agnostic framework for explaining the output of any machine learning model. It is based on a theoretically grounded concept from cooperative game theory: <strong>Shapley values</strong>.</p>
+            
+            <blockquote>
+                <p><strong>The Game Theory Analogy</strong></p>
+                <p>Imagine a cooperative game where a team of players works together to achieve a certain payout. How should the final payout be distributed fairly among the players, given that some may have contributed more than others? The Shapley value for a player is their average marginal contribution to the outcome across all possible teams (or "coalitions") they could have joined.</p>
+                <p>In XAI, we reframe this:</p>
+                <ul>
+                    <li>The "game" is the model's prediction for a single data point.</li>
+                    <li>The "payout" is the difference between the model's actual prediction and the average (baseline) prediction across all data.</li>
+                    <li>The "players" are the input features for that data point.</li>
+                </ul>
+                <p>The <strong>SHAP value</strong> for a feature is the change in the model's output when that feature is included, averaged over all possible orderings of including the other features. It provides a theoretically sound way to fairly distribute the credit for a prediction among the input features. It answers the question: "How much did the value of feature $j$ (e.g., Temperature=300K) push the model's output away from the baseline prediction for this specific instance?"</p>
+            </blockquote>
+            <p>SHAP values are powerful because they provide both <strong>local explanations</strong> (why a specific prediction was made for a single data point) and <strong>global explanations</strong> (by aggregating the SHAP values across the entire dataset, we can see which features are most important on average).</p>
+            
+            <h4>23.3 Concept-based Explanations</h4>
+            <p>Attributing importance to low-level features like pixels is useful, but often we want to understand a model's reasoning in terms of high-level, human-understandable concepts. For example, if a model learns to distinguish between different phases of matter from simulation data, we don't just want to know which atoms were important; we want to know if it learned the concept of "crystalline structure" vs. "disorder."</p>
+            <p>Methods like <strong>TCAV (Testing with Concept Activation Vectors)</strong> aim to do this. The general workflow is:</p>
+            <ol>
+                <li><strong>Define a Concept:</strong> The user provides a set of example images that represent a human-understandable concept (e.g., images with "stripes" or "dots").</li>
+                <li><strong>Find the Concept's Representation:</strong> The examples are passed through the network, and their activation vectors at an intermediate layer are collected. A "Concept Activation Vector" (CAV) is then defined as the vector that separates the activations of the concept examples from random examples.</li>
+                <li><strong>Test for Importance:</strong> The CAV is then used to test how sensitive the model's final prediction is to that concept. By taking the directional derivative of the output with respect to the CAV, TCAV can quantify whether the concept of "stripes" was important for the model's classification of a "zebra."</li>
+            </ol>
+            <p>This approach is a crucial step towards genuine model understanding and debugging, allowing us to align the internal reasoning of a neural network with the scientific concepts we use to understand the world.</p>
+        </main>
+        
+        <hr>
+        
+        <nav class="navigation-links" style="display: flex; justify-content: space-between;">
+            <a href="ch22.html">← Chapter 22</a>
+            <a href="ch24.html">Chapter 24: The Future →</a>
+        </nav>
+    </div>
+
+</body>
+</html>

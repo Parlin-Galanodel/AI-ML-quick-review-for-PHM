@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 18: Diffusion Models | AI for the Physicist</title>
+    
+    <link rel="stylesheet" href="css/style.css">
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true},{left: '$', right: '$', display: false}]});"></script>
+
+    <!-- Mermaid.js for rendering diagrams -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({startOnLoad:true});</script>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <p><a href="index.html">← Back to Table of Contents</a></p>
+            <h2>Chapter 18: Diffusion & Score-Based Models – A Thermodynamic Approach to Generation</h2>
+        </header>
+
+        <main>
+            <p>Diffusion models have recently emerged as the state-of-the-art in generative modeling, capable of producing stunningly realistic and diverse samples. Their design is explicitly and beautifully inspired by principles from <strong>non-equilibrium thermodynamics</strong>. They learn to generate data by modeling the reversal of a process that gradually destroys structure with noise.</p>
+            
+            <blockquote>
+                <p><strong>The Core Analogy: Scrambling and Unscrambling a Puzzle</strong></p>
+                <p>Imagine you have a completed jigsaw puzzle (a structured data sample, $\mathbf{x}_0$).
+                <ul>
+                    <li><strong>Forward Process:</strong> You take the puzzle and shake the box gently, over and over, for a thousand small steps. At each step, a few pieces get slightly jumbled. After a thousand shakes, the pieces are completely scrambled into a random, chaotic mess (pure noise, $\mathbf{x}_T$). This "scrambling" process is simple, random, and easy to do. It's a fixed process that increases entropy.</li>
+                    <li><strong>Reverse Process:</strong> Now, imagine the impossible task of watching a video of this process in reverse. The randomly jumbled pieces would magically find their neighbors and reassemble into the completed puzzle. This is the "unscrambling" process. It's a process that decreases entropy and requires knowledge of what the final picture should look like.</li>
+                </ul>
+                <p>A diffusion model learns to perform this impossible-seeming reverse process. It doesn't learn the whole process at once. It learns to perform just one step: "Given a puzzle that has been shaken $t$ times, what was it like when it had been shaken $t-1$ times?" By learning this one-step denoising function, and applying it iteratively, it can start from pure chaos and create a perfectly ordered structure.</p>
+            </blockquote>
+
+            <h4>18.1 The Forward Process: A Markov Chain of Diffusion</h4>
+            <p>The first part of a diffusion model is a fixed, non-learned <strong>forward process</strong>. This process takes a data sample $\mathbf{x}_0$ and gradually adds a small amount of Gaussian noise over a sequence of many discrete time steps, $t=1, \dots, T$. This creates a Markov chain where the state at time $t$ only depends on the state at time $t-1$:</p>
+            $$ q(\mathbf{x}_t | \mathbf{x}_{t-1}) = \mathcal{N}(\mathbf{x}_t | \sqrt{1 - \beta_t} \mathbf{x}_{t-1}, \beta_t \mathbf{I}) $$
+            <p>Here, $\{\beta_t\}_{t=1}^T$ is a pre-defined <strong>variance schedule</strong>. The $\beta_t$ values are small, ensuring that after a large number of steps $T$ (e.g., $T=1000$), the final state $\mathbf{x}_T$ is indistinguishable from pure, unstructured isotropic Gaussian noise. This process mirrors a physical **diffusion process**, like a drop of ink diffusing in water, as the system evolves towards a state of maximum entropy.</p>
+
+            <div class="figure">
+                <div class="mermaid">
+                    graph LR
+                        X0["x_0<br>(Clean Data)"] -- "+ noise" --> X1["x_1"]
+                        X1 -- "+ noise" --> X2["x_2"]
+                        X2 --> X_etc["..."]
+                        X_etc --> XT["x_T<br>(Pure Noise)"]
+
+                        style X0 fill:#ccf,stroke:#333
+                        style XT fill:#f9f,stroke:#333
+                </div>
+                <p class="caption"><b>Figure 18.1:</b> The fixed forward process of a diffusion model. A clean data sample x₀ is gradually corrupted by adding small amounts of Gaussian noise over T steps, resulting in a sample xₜ that is pure noise.</p>
+            </div>
+
+            <h4>18.2 The Reverse Process: Learning to Denoise</h4>
+            <p>The generative part of the model is a neural network that learns to <strong>reverse this diffusion process</strong>. The goal is to learn the distribution of the previous state given the current state, $p_\theta(\mathbf{x}_{t-1} | \mathbf{x}_t)$. If we could do this, we could start with pure noise and iteratively sample backwards, step-by-step, to generate a clean data sample.</p>
+            <p>The key insight is that this difficult problem can be simplified enormously. Instead of training a network to predict the entire denoised image $\mathbf{x}_{t-1}$, we can rephrase the problem and train a network, $\boldsymbol{\epsilon}_\theta(\mathbf{x}_t, t)$, to simply <strong>predict the noise component $\boldsymbol{\epsilon}$</strong> that was added to the original clean image $\mathbf{x}_0$ to get to the current noisy image $\mathbf{x}_t$. The training objective then becomes a simple mean squared error loss between the true noise and the predicted noise:</p>
+            $$ \mathcal{L}(\theta) = \mathbb{E}_{t \sim U(1,T), \mathbf{x}_0, \boldsymbol{\epsilon}} \left[ || \boldsymbol{\epsilon} - \boldsymbol{\epsilon}_\theta(\sqrt{\bar{\alpha}_t}\mathbf{x}_0 + \sqrt{1-\bar{\alpha}_t}\boldsymbol{\epsilon}, t) ||^2 \right] $$
+            <p>Here, for each training step, we pick a random image $\mathbf{x}_0$, a random timestep $t$, and a random noise vector $\boldsymbol{\epsilon}$. We create the noisy image $\mathbf{x}_t$ and ask the network to predict the noise $\boldsymbol{\epsilon}$ we just used. The neural network architecture used for the noise predictor $\boldsymbol{\epsilon}_\theta$ is typically a <strong>U-Net</strong>, which is well-suited for image-to-image tasks like denoising.</p>
+            
+            <div class="figure">
+                <div class="mermaid">
+                    graph LR
+                        XT["x_T<br>(Pure Noise)"] -- "- predicted noise" --> XT_minus_1["x_T-1"]
+                        XT_minus_1 -- "- predicted noise" --> XT_minus_2["x_T-2"]
+                        XT_minus_2 --> X_etc["..."]
+                        X_etc --> X0["x_0<br>(Generated Data)"]
+
+                        style X0 fill:#ccf,stroke:#333
+                        style XT fill:#f9f,stroke:#333
+                </div>
+                <p class="caption"><b>Figure 18.2:</b> The learned reverse process. Starting from pure noise, a neural network iteratively predicts and removes the noise component for each time step, gradually transforming the unstructured noise into a coherent data sample.</p>
+            </div>
+            
+            <h4>18.3 The Deep Connection: Score Matching and Langevin Dynamics</h4>
+            <p>The "denoising" perspective is one way to understand diffusion models. An alternative but deeply related perspective, rooted in statistical physics, is that of <strong>score-based generative modeling</strong>. This viewpoint provides a powerful continuous-time picture of the generative process and clarifies what the neural network is truly learning.</p>
+
+            <h5>What is the "Score"?</h5>
+            <p>The <strong>score</strong> of a probability distribution $p(\mathbf{x})$ is defined as the gradient of the log-probability with respect to the data, $\nabla_\mathbf{x} \log p(\mathbf{x})$.</p>
+            <blockquote>
+                <p><strong>Intuitive Analogy: A Topographical Map</strong></p>
+                <p>Imagine your data distribution $p(\mathbf{x})$ is a landscape, where the height of the landscape at any point $\mathbf{x}$ represents the probability density. Real data samples (like images of cats) live on the high "mountains" of this landscape, while improbable data (like random noise) lives in the low "valleys." The score function, $\nabla_\mathbf{x} \log p(\mathbf{x})$, at any point $\mathbf{x}$ is a vector that points in the direction of the steepest ascent—it points you "uphill" towards the nearest mountain peak. The score function is a vector field that maps out the entire landscape.</p>
+            </blockquote>
+            <p>If we could learn the score function for our data distribution, we could use it to generate new samples. How? By starting in a random valley and climbing uphill.</p>
+            
+            <h5>Langevin Dynamics: Descending a Potential Landscape</h5>
+            <p>In physics, <strong>Langevin dynamics</strong> is a stochastic differential equation used to model the motion of a particle in a fluid, subject to two forces: a deterministic drift force from a potential field, and a random, stochastic force from thermal fluctuations (Brownian motion).</p>
+            <p>A simple Langevin equation looks like this:</p>
+            $$ d\mathbf{x} = \mathbf{F}(\mathbf{x}) dt + \sqrt{2D} d\mathbf{w} $$
+            <ul>
+                <li>$d\mathbf{x}$ is the infinitesimal change in the particle's position.</li>
+                <li>$\mathbf{F}(\mathbf{x})$ is the deterministic force field at position $\mathbf{x}$.</li>
+                <li>$dt$ is the infinitesimal time step.</li>
+                <li>$d\mathbf{w}$ represents a random kick from the Wiener process (Brownian motion).</li>
+                <li>$D$ is the diffusion coefficient, related to temperature.</li>
+            </ul>
+            <p>If a particle follows these dynamics for a long time, the probability distribution of its position will converge to the Boltzmann distribution of the potential that generates the force, $p(\mathbf{x}) \propto e^{-U(\mathbf{x})/T}$.</p>
+            
+            <h5>Connecting the Pieces: The Score is the Force</h5>
+            <p>Here is the beautiful connection. Let's define a potential energy landscape for our data distribution where low energy corresponds to high probability:</p>
+            $$ U(\mathbf{x}) = -\log p(\mathbf{x}) $$
+            <p>What is the force on a particle in this potential landscape?</p>
+            $$ \mathbf{F}(\mathbf{x}) = -\nabla U(\mathbf{x}) = - \nabla (-\log p(\mathbf{x})) = \nabla \log p(\mathbf{x}) $$
+            <p><strong>The force is the score!</strong></p>
+            <p>This means that if we simulate Langevin dynamics using the score of the data distribution as the force, the particle will naturally be pushed towards regions of high probability density (the "mountains") while still exploring due to the random noise term. This gives us a way to generate samples: start with a random point and simulate these dynamics to find a low-energy (high-probability) state.</p>
+
+            <h5>Diffusion Models as Learned Langevin Dynamics</h5>
+            <p>Now we can unite all three concepts:</p>
+            <ol>
+                <li>The forward diffusion process takes real data and evolves it into pure noise. This can be described by a stochastic differential equation.</li>
+                <li>It turns out that the SDE for the <em>reverse</em> process (going from noise to data) has a simple form. To run the reverse SDE, the only thing you need to know is the <strong>score of the noisy data distribution</strong> at each intermediate time $t$, which is $\nabla_\mathbf{x} \log p_t(\mathbf{x})$.</li>
+                <li>The neural network in a diffusion model, $\boldsymbol{\epsilon}_\theta(\mathbf{x}_t, t)$, which we trained to predict the noise, can be shown to be mathematically equivalent to learning the score function of the noisy data distribution. That is, $\boldsymbol{\epsilon}_\theta(\mathbf{x}_t, t) \propto s_\theta(\mathbf{x}_t, t)$.</li>
+            </ol>
+            <p>Therefore, the reverse (generative) process of a diffusion model is nothing more than a numerical simulation of <strong>Langevin dynamics on a learned potential energy landscape</strong>. The neural network learns the "force field" (the score) that guides a randomly initialized point from a high-energy "noise" state down into a low-energy "data" state on the learned data manifold. This provides a deep and powerful physical foundation for understanding why these models are so effective.</p>
+        </main>
+        
+        
+        <hr>
+        
+        <nav class="navigation-links" style="display: flex; justify-content: space-between;">
+            <a href="ch17.html">← Chapter 17</a>
+            <a href="ch19.html">Chapter 19: Reinforcement Learning →</a>
+        </nav>
+    </div>
+
+</body>
+</html>

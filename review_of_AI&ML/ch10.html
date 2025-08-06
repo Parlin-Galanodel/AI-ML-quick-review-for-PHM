@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 10: Feedforward Networks | AI for the Physicist</title>
+    
+    <link rel="stylesheet" href="css/style.css">
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true},{left: '$', right: '$', display: false}]});"></script>
+
+    <!-- Mermaid.js for rendering diagrams -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({startOnLoad:true});</script>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <p><a href="index.html">← Back to Table of Contents</a></p>
+            <h2>Chapter 10: Feedforward Networks – From Spin Glasses to Universal Approximators</h2>
+        </header>
+
+        <main>
+            <p>We begin our exploration of deep learning with the simplest architecture: the <strong>feedforward neural network</strong>, also known as the <strong>Multi-Layer Perceptron (MLP)</strong>. An MLP consists of an input layer, one or more hidden layers, and an output layer. Each layer is composed of computational units ("neurons"), and information flows in only one direction—from input to output—without any loops or cycles.</p>
+
+            <h4>10.1 The Universal Approximation Theorem</h4>
+            <p>A foundational result that gives neural networks their power is the <strong>Universal Approximation Theorem</strong>. In its common form, it states that a feedforward network with just a single hidden layer, containing a finite number of neurons and a non-linear activation function, can approximate any continuous function on a compact (closed and bounded) subset of $\mathbb{R}^d$ to an arbitrary degree of accuracy.</p>
+            <p>This is a powerful existence proof: it guarantees that for any continuous function $f(\mathbf{x})$, there <em>exists</em> a single-layer network that can approximate it. It doesn't tell us how to <em>find</em> the right weights and biases (that's the job of optimization), nor does it say that a single layer is the most <em>efficient</em> way to represent a function. However, we can build a constructive physical intuition for why it's true.</p>
+
+            <blockquote>
+                <p><strong>A Constructive Intuition: Building Functions from Scratch</strong></p>
+                <p>The key insight is that we can use the simple non-linearities of neurons as building blocks to construct arbitrarily complex shapes. Let's use the sigmoid activation function, $\sigma(z) = 1/(1+e^{-z})$.</p>
+				
+				<div class="figure">
+					<img src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/88/Logistic-curve.svg/1280px-Logistic-curve.svg.png" width="700" alt="Sigmoid Function">
+					<p class="caption"><b>Figure 10.1:</b> The sigmoid function as an activation function</p>
+				</div>
+                <p><strong>Step 1: Creating a "Step Function"</strong></p>
+                <p>Consider a single neuron with one input $x$. Its output is $\sigma(wx+b)$. The sigmoid function smoothly transitions from 0 to 1, and the center of this transition is at the point where its input is zero: $wx+b=0$, or $x = -b/w$. If we make the weight $w$ a very large positive number, the transition becomes extremely steep, approximating a sharp <strong>step function</strong> that jumps from 0 to 1 at the location $s = -b/w$. We can control the location of the step by changing the bias $b$.</p>
+
+                <p><strong>Step 2: Creating a "Bump Function"</strong></p>
+                <p>Now, take two neurons in a single hidden layer.
+                <ul>
+                    <li>Neuron 1: Use a large weight $w$ and a bias $b_1$ to create a step-up at $s_1 = -b_1/w$.</li>
+                    <li>Neuron 2: Use a large <em>negative</em> weight $-w$ and a bias $b_2$ to create a step-<em>down</em> at $s_2 = b_2/w$.</li>
+                </ul>
+                If we then send these two outputs to a final output neuron that simply subtracts the second from the first (by setting the output weights to +1 and -1), the result is a rectangular <strong>"bump" function</strong>. It's a function that is approximately zero everywhere except for a small region between $s_1$ and $s_2$, where it is one.</p>
+
+                <p><strong>Step 3: Approximating Any Function</strong></p>
+                <p>Any well-behaved, continuous function can be approximated by a sum of many such narrow bump functions, much like a Riemann sum approximates an integral. By using a single hidden layer with many neurons, we can create a whole collection of these bump functions of varying heights (controlled by their output weights), positions (controlled by their biases), and widths. By summing them in the output layer, we can "build" an approximation to any 1D continuous function we desire. This logic extends to higher dimensions, where neurons can create "hyper-steps" and combinations of them can isolate hyper-rectangular regions.</p>
+            </blockquote>
+
+            <div class="figure">
+                <div class="mermaid">
+                    graph TD
+                        subgraph "Step 1: Create a Step"
+                            A["Input x"] --> N1["Neuron 1<br>σ(wx + b₁)"]
+                            N1 --> Step1["Output ≈ Step Function"]
+                        end
+                        subgraph "Step 2: Create a Bump"
+                            B["Input x"] --> N2["Neuron 1 (Step Up)"]
+                            B --> N3["Neuron 2 (Step Down)"]
+                            N2 & N3 --> Sum["Output Layer<br>(Subtracts)"]
+                            Sum --> Bump["Output ≈ Bump Function"]
+                        end
+                        subgraph "Step 3: Approximate f(x)"
+                            C["Many Bumps"] -->|Weighted Sum| D["Approximation of f(x)"]
+                        end
+                </div>
+                <p class="caption"><b>Figure 10.2:</b> A constructive intuition for the Universal Approximation Theorem. (Left) A sigmoid neuron with a large weight approximates a step function. (Middle) The difference of two sharp step functions creates a "bump" function. (Right) A sum of many such bumps of varying height and width can approximate any continuous function.</p>
+            </div>
+            <p>This shows that even a simple network has the <em>capacity</em> to be a universal approximator. The key is that the <strong>non-linearity</strong> of the activation function is essential; a network with only linear activations can only ever compute a linear function. The power of <strong>depth</strong> (using multiple hidden layers) comes from the fact that it allows the network to build a more efficient, hierarchical representation of the function, a concept we will explore with CNNs.</p>
+
+            <h4>10.2 The Optimization Landscape: A Spin Glass Analogy</h4>
+            <p>The loss landscape of a deep neural network, $\mathcal{L}(\boldsymbol{\theta})$, is a high-dimensional, highly non-convex function. Understanding its geometry is crucial for understanding why training is possible. A powerful physical analogy is the <strong>energy landscape of a spin glass</strong>.</p>
+            <p>A spin glass is a disordered magnetic system, often modeled with an energy (Hamiltonian) where the coupling constants $J_{ij}$ between spins are chosen randomly from a distribution with a mean of zero. This random mix of ferromagnetic ($J_{ij}>0$) and antiferromagnetic ($J_{ij}<0$) bonds leads to <strong>frustration</strong>: it's impossible to orient the spins to simultaneously satisfy all interaction bonds. For example, if spin A wants to align with B, and B wants to align with C, but C wants to anti-align with A, there is no low-energy state that makes everyone happy.</p>
+            <p>This frustration creates an incredibly rugged energy landscape with an exponential number of metastable states (local energy minima). Early theories of neural network training were pessimistic, fearing that optimizers like SGD would get permanently stuck in one of these many poor local minima, far from the global ground state.</p>
+            <p>However, modern research from statistical physics has revealed a different picture for the high-dimensional landscapes of deep networks:</p>
+            <ol>
+                <li><strong>The Blessing of Dimensionality: Saddle Points Dominate:</strong> In high dimensions, random critical points are overwhelmingly likely to be <strong>saddle points</strong>, not local minima. For a point to be a local minimum, all eigenvalues of the Hessian matrix must be positive. In a space with a million dimensions, it's statistically much more likely that there will be a mix of positive and negative eigenvalues, creating a saddle. The real challenge for optimization is not getting stuck in bad minima, but rather navigating the vast, flat plateaus and escaping the many saddle points.</li>
+                <li><strong>Quality of Minima:</strong> For many large neural networks, it has been shown that most local minima are of very high quality, with loss values close to that of the global minimum. The bad "traps" are not as common as once feared.</li>
+                <li><strong>Wide vs. Sharp Minima:</strong> The minima found by SGD tend to be in "wide, flat valleys" of the loss landscape, rather than "sharp, narrow gorges." There is growing evidence that the "flatness" of a minimum correlates with better generalization. A sharp minimum means the loss is very sensitive to small perturbations in the weights, while a flat minimum is more robust. The noise in SGD may act like temperature, biasing it towards finding these wider, more entropically favorable, and robust solutions.</li>
+            </ol>
+            <p>This modern view suggests that training a deep network is less like trying to find a single, unique ground state, and more like exploring a landscape where most low-energy regions are good enough. The study of the statistical physics of these complex energy landscapes is a vibrant and essential frontier of deep learning theory.</p>
+			
+            <h4>10.3 The Structure of a Multi-Layer Perceptron</h4>
+            <p>An MLP is a function that maps an input vector to an output vector. This mapping is learned from data by adjusting the network's parameters (weights and biases). The network is built from layers of interconnected "neurons."</p>
+            
+            <div class="figure">
+                <div class="mermaid">
+                    graph TD
+                        subgraph Input Layer
+                            direction TB
+                            I1[x₁]
+                            I2[x₂]
+                            I3[...]
+                        end
+                        subgraph Hidden Layer 1
+                            direction TB
+                            H11[h₁]
+                            H12[h₂]
+                            H13[...]
+                        end
+                        subgraph Hidden Layer 2
+                            direction TB
+                            H21[h₁]
+                            H22[h₂]
+                            H23[...]
+                        end
+                        subgraph Output Layer
+                            direction TB
+                            O1[y₁]
+                            O2[...]
+                        end
+
+                        I1 & I2 & I3 --> H11 & H12 & H13
+                        H11 & H12 & H13 --> H21 & H22 & H23
+                        H21 & H22 & H23 --> O1 & O2
+                </div>
+                <p class="caption"><b>Figure 10.1:</b> The structure of a Multi-Layer Perceptron. Information flows from the input layer through one or more hidden layers to the output layer. Each neuron in a layer is typically connected to every neuron in the previous layer.</p>
+            </div>
+            
+            <p>Let's walk through the computation for a single hidden layer. Let the input be a vector $\mathbf{x} \in \mathbb{R}^d$.</p>
+            <ol>
+                <li><strong>Linear Transformation:</strong> The first step is a linear transformation, just like in linear regression. We multiply the input vector $\mathbf{x}$ by a weight matrix $\mathbf{W}^{(1)}$ and add a bias vector $\mathbf{b}^{(1)}$. The result is a pre-activation vector $\mathbf{z}^{(1)}$.
+                $$ \mathbf{z}^{(1)} = \mathbf{W}^{(1)}\mathbf{x} + \mathbf{b}^{(1)} $$
+                If the input layer has $d$ neurons and the hidden layer has $h$ neurons, then $\mathbf{W}^{(1)}$ is an $h \times d$ matrix, and $\mathbf{b}^{(1)}$ is a vector of length $h$.</li>
+                
+                <li><strong>Non-Linear Activation:</strong> The key step that gives the network its power is applying a non-linear <strong>activation function</strong> $\sigma$ element-wise to the pre-activation vector $\mathbf{z}^{(1)}$. This produces the hidden layer's output, or "activations," $\mathbf{a}^{(1)}$.
+                $$ \mathbf{a}^{(1)} = \sigma(\mathbf{z}^{(1)}) = \sigma(\mathbf{W}^{(1)}\mathbf{x} + \mathbf{b}^{(1)}) $$
+                Common activation functions include the sigmoid $\sigma(z) = 1/(1+e^{-z})$, the hyperbolic tangent $\tanh(z)$, and the most popular choice in modern networks, the Rectified Linear Unit (ReLU), $\sigma(z) = \max(0, z)$.</li>
+                
+                <li><strong>Final Output:</strong> The activations from the hidden layer, $\mathbf{a}^{(1)}$, are then treated as the input to the next layer. For the final output layer, we would apply another linear transformation and potentially a final activation function (e.g., a softmax for multi-class classification).
+                $$ \mathbf{y} = \sigma_{\text{out}}(\mathbf{W}^{(2)}\mathbf{a}^{(1)} + \mathbf{b}^{(2)}) $$</li>
+            </ol>
+            <p>A "deep" neural network is simply one where this process is repeated over multiple hidden layers. The output of one layer, $\mathbf{a}^{(k)}$, becomes the input to the next, $\mathbf{a}^{(k+1)} = \sigma(\mathbf{W}^{(k+1)}\mathbf{a}^{(k)} + \mathbf{b}^{(k+1)})$.</p>
+
+            <h4>10.4 Training an MLP: Loss Functions and Backpropagation</h4>
+            <p>The structure described above shows how an MLP makes a prediction (a "forward pass"). But how does it learn? We need two more components: a way to measure its error, and a mechanism to update its weights and biases to reduce that error.</p>
+            
+            <h5>The Loss Function (The "Potential Energy")</h5>
+            <p>As we saw in Chapter 3, a <strong>loss function</strong> $\mathcal{L}(\boldsymbol{\theta})$ measures the mismatch between the network's prediction $\hat{y}$ and the true label $y$. The choice of loss function depends on the task:</p>
+            <ul>
+                <li><strong>For Regression:</strong> The most common choice is the <strong>Mean Squared Error (MSE)</strong>, which computes the average squared difference between the prediction and the truth. This is the "harmonic potential" of machine learning, creating a smooth landscape for the optimizer.
+                $$ \mathcal{L}_{\text{MSE}} = \frac{1}{N} \sum_{i=1}^{N} (\hat{y}_i - y_i)^2 $$</li>
+                <li><strong>For Classification:</strong> The standard choice is the <strong>Cross-Entropy Loss</strong>. As we derived in Chapter 4, this loss function is the natural result of applying the principle of maximum likelihood when the network's output is a probability (produced by a sigmoid or softmax activation function). It measures the "distance" between the predicted probability distribution and the true one. For binary classification, this is:
+                $$ \mathcal{L}_{\text{BCE}} = -\frac{1}{N} \sum_{i=1}^{N} [y_i \log(\hat{y}_i) + (1-y_i)\log(1-\hat{y}_i)] $$</li>
+            </ul>
+
+            <h5>Optimization and Backpropagation (Finding the "Forces")</h5>
+            <p>To minimize the loss, we use gradient descent. We treat the loss as a potential energy landscape over the space of all possible weights and biases ($\boldsymbol{\theta}$). Our goal is to calculate the "force," $-\nabla_{\boldsymbol{\theta}}\mathcal{L}$, which tells us the steepest downhill direction.</p>
+            <p>The challenge is that the loss is a deeply nested, composite function of thousands or millions of parameters. How do we efficiently calculate the partial derivative of the final loss with respect to a single weight in the very first layer? The answer is the celebrated <strong>backpropagation</strong> algorithm.</p>
+            <p>Backpropagation is nothing more than a computationally efficient way of applying the **chain rule** from calculus to a neural network. It works in two passes:</p>
+            <ol>
+                <li><strong>The Forward Pass:</strong> We feed an input vector $\mathbf{x}$ through the network, layer by layer, computing the pre-activations and activations at each step until we get the final output $\hat{y}$. We then use this output to compute the final scalar loss, $\mathcal{L}$. This is like setting up a physical system and measuring its total energy.</li>
+                <li><strong>The Backward Pass:</strong> This is where the magic happens.
+                    <ul>
+                        <li>We start at the very end, with the loss $\mathcal{L}$. We can easily calculate the gradient of the loss with respect to the output of the final layer.</li>
+                        <li>Using the chain rule, we take this gradient and propagate it *backwards* through the final activation function and the final linear layer to compute the gradients with respect to the weights of the final layer ($\mathbf{W}^{(\text{out})}$) and the activations of the last hidden layer ($\mathbf{a}^{(\text{last_hidden})}$).</li>
+                        <li>We now have the gradient for the last hidden layer's activations. We repeat the process: we propagate this gradient backwards through that layer's activation function and linear transformation to find the gradients for *its* weights and the activations of the *previous* layer.</li>
+                        <li>This process continues, layer by layer, until we have propagated the "error signal" all the way back to the first layer, calculating the gradient for every single weight and bias in the network.</li>
+                    </ul>
+                </li>
+            </ol>
+            <p>Finally, once we have all these gradients, we take a small step in the opposite direction for every parameter, as prescribed by gradient descent: $\boldsymbol{\theta}_{\text{new}} = \boldsymbol{\theta}_{\text{old}} - \eta \nabla_{\boldsymbol{\theta}}\mathcal{L}$. This entire forward-and-backward cycle is repeated for many mini-batches of data until the loss is minimized. Modern deep learning frameworks like PyTorch and JAX automate the backward pass, but understanding this underlying mechanism is crucial.</p>
+
+
+        </main>
+        
+        <hr>
+        
+        <nav class="navigation-links" style="display: flex; justify-content: space-between;">
+            <a href="ch9.html">← Chapter 9</a>
+            <a href="ch11.html">Chapter 11: Convolutional Neural Networks →</a>
+        </nav>
+    </div>
+
+</body>
+</html>

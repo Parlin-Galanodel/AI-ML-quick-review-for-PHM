@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 3: Optimization – Finding the Ground State | AI for the Physicist</title>
+    
+    <link rel="stylesheet" href="css/style.css">
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true},{left: '$', right: '$', display: false}]});"></script>
+
+    <!-- Mermaid.js for rendering diagrams -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({startOnLoad:true});</script>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <p><a href="index.html">← Back to Table of Contents</a></p>
+            <h2>Chapter 3: Optimization – Finding the Ground State</h2>
+        </header>
+
+        <main>
+            <p>This chapter solidifies the book's central analogy: the process of training a machine learning model is equivalent to finding the minimum energy state of a physical system. The loss function defines a potential energy landscape over the parameter space. Optimization algorithms are not arbitrary recipes; they are discretized equations of motion for a particle traversing this high-dimensional energy surface.</p>
+
+            <h4>3.1 The Loss Function $\mathcal{L}(\theta)$: The Potential Energy Landscape of Learning</h4>
+            <p>The training of nearly every machine learning model is framed as an optimization problem. Our goal is to find the specific set of parameters $\boldsymbol{\theta}^*$ from a parameter space $\Theta$ that minimizes a <strong>loss function</strong> (or cost function), $\mathcal{L}(\boldsymbol{\theta})$. This function quantifies the mismatch between our model's predictions and the true data. For a supervised learning task with a dataset $D = \{(\mathbf{x}_i, y_i)\}_{i=1}^N$ and a model $f_{\boldsymbol{\theta}}(\mathbf{x})$, the loss is typically an average over the per-sample loss $\ell$:</p>
+            $$ \mathcal{L}(\boldsymbol{\theta}) = \frac{1}{N} \sum_{i=1}^N \ell(f_{\boldsymbol{\theta}}(\mathbf{x}_i), y_i) $$
+            <p>We now formally define this loss function $\mathcal{L}(\boldsymbol{\theta})$ as a <strong>potential energy surface</strong> or <strong>energy landscape</strong> over the high-dimensional space of parameters $\boldsymbol{\theta}$. Each point in this space represents a complete specification of the model, and the height of the surface at that point, $\mathcal{L}(\boldsymbol{\theta})$, represents the "energy" or "cost" of that particular model configuration. The goal of learning is to find the parameter vector $\boldsymbol{\theta}^*$ that corresponds to the <strong>global minimum</strong> of this landscape—the system's <strong>ground state</strong>.</p>
+            $$ \boldsymbol{\theta}^* = \arg\min_{\boldsymbol{\theta} \in \Theta} \mathcal{L}(\boldsymbol{\theta}) $$
+            <p>The geometry of this landscape—its hills, valleys, plateaus, and saddle points—dictates the difficulty of the optimization problem. For a simple model like linear regression, the landscape is a perfect, convex paraboloid with a unique global minimum. For a deep neural network, the landscape is a vastly complex, high-dimensional, non-convex object, whose properties are still an active area of research, drawing heavily on insights from the statistical physics of disordered systems like spin glasses.</p>
+
+            <h4>3.2 Gradient-Based Optimization: Equations of Motion on the Loss Surface</h4>
+            <p>If learning is the process of finding the lowest point on this energy surface, then optimization algorithms are the physical laws that govern how we move on that surface. The vast majority of algorithms used in modern machine learning are gradient-based, meaning they use the local force $\mathbf{F} = -\nabla \mathcal{L}$ to decide which way to move.</p>
+            
+            <ul>
+                <li><p><strong>Gradient Descent: Overdamped Motion</strong></p>
+                <p>The most fundamental optimization algorithm is <strong>Gradient Descent (GD)</strong>. At each iteration $k$, it updates the parameters $\boldsymbol{\theta}$ by taking a small step in the direction of the negative gradient:</p>
+                $$ \boldsymbol{\theta}_{k+1} = \boldsymbol{\theta}_k - \eta \nabla \mathcal{L}(\boldsymbol{\theta}_k) $$
+                <p>where $\eta$ is a small positive scalar called the <strong>learning rate</strong>. This simple update rule can be seen as the <strong>Forward Euler discretization</strong> of a first-order ordinary differential equation. This equation describes the motion of a particle with its velocity directly proportional to the force acting on it, $\mathbf{F} = -\nabla \mathcal{L}$. This is the equation for <strong>overdamped motion</strong>, where inertial effects are negligible compared to friction. It describes, for example, a ball sinking slowly through a viscous fluid like honey. The learning rate $\eta$ is analogous to the inverse of a friction coefficient; a smaller $\eta$ means more friction and smaller, more stable steps.</p></li>
+                
+                <li><p><strong>Stochastic Gradient Descent: Introducing a Thermal Bath</strong></p>
+                <p>In practice, computing the true gradient $\nabla \mathcal{L}$ requires summing over the entire dataset, which is computationally prohibitive for large datasets. Instead, we use <strong>Stochastic Gradient Descent (SGD)</strong>. At each step, we estimate the gradient on a small, random subset of the data called a <em>mini-batch</em>. The update rule uses this noisy gradient:</p>
+                $$ \boldsymbol{\theta}_{k+1} = \boldsymbol{\theta}_k - \eta \nabla \tilde{\mathcal{L}}(\boldsymbol{\theta}_k) $$
+                <p>This has a profound physical interpretation. The estimated gradient is a noisy version of the true gradient: $\nabla \tilde{\mathcal{L}} = \nabla \mathcal{L} + \boldsymbol{\xi}$, where $\boldsymbol{\xi}$ is a random noise term with zero mean. The update rule now describes a <strong>stochastic differential equation</strong>, or a form of the <strong>Langevin equation</strong> for a particle undergoing <strong>Brownian motion</strong> in a potential. The stochastic term $\boldsymbol{\xi}(t)$ represents random kicks from a surrounding thermal bath. This noise is incredibly useful, as it can help the particle "jiggle" out of shallow local minima and more easily traverse flat regions and saddle points, often leading to better final solutions (lower energy ground states) than full-batch gradient descent.</p></li>
+                
+                <li><p><strong>Momentum: Adding Inertia</strong></p>
+                <p>Simple gradient descent is notoriously slow in long, narrow valleys (ravines) in the loss landscape. The gradient points steeply across the valley but has a small component along its floor, causing the optimizer to oscillate. A natural physical improvement is to give our particle inertia, so it can build up speed along the bottom of the valley. The <strong>Momentum</strong> method does this by introducing a "velocity" vector $\mathbf{v}$ that accumulates an exponentially decaying moving average of past gradients:</p>
+                $$ \mathbf{v}_{k+1} = \beta \mathbf{v}_k + (1-\beta) \nabla \mathcal{L}(\boldsymbol{\theta}_k) $$
+                $$ \boldsymbol{\theta}_{k+1} = \boldsymbol{\theta}_k - \eta \mathbf{v}_{k+1} $$
+                <p>Here, $\beta \in [0,1)$ is a momentum parameter (often around 0.9). This is a discretization of Newton's second law for a particle with a friction term moving in a potential. This "heavy ball" analogy explains its behavior: the momentum term allows the particle to build up speed along consistent downhill directions (the valley floor) while the oscillations across the valley tend to cancel out, leading to much faster convergence.</p></li>
+                
+                <li><p><strong>Adaptive Methods (Adam, RMSprop): Position-Dependent Mass</strong></p>
+                <p>A further refinement addresses the problem that the ideal learning rate may be different for different parameters. <strong>RMSprop</strong> and <strong>Adam</strong> (Adaptive Moment Estimation) dynamically adjust the learning rate for each parameter individually. They do this by tracking a moving average of the squared gradients for each parameter and dividing the update step by the square root of this average. The physical analogy is that of a particle with a <strong>position-dependent effective mass</strong>. In regions where the gradient is consistently large for a parameter (steep walls), its effective "mass" increases, damping motion and preventing oscillations. In flat regions where the gradient is small, the effective mass is small, allowing for larger steps. This adaptability makes Adam the robust, default choice for training most deep neural networks.</p></li>
+            </ul>
+            
+            <h4>3.3 Constrained Optimization: Forces and Manifolds</h4>
+            <p>Often, we want to minimize a function subject to certain constraints. This is common in physics (e.g., a particle confined to a surface, conservation of probability) and machine learning.</p>
+            
+            <ul>
+                <li><p><strong>Lagrange Multipliers (Equality Constraints)</strong></p>
+                <p>Consider minimizing a function $f(\boldsymbol{\theta})$ subject to a set of equality constraints, $g_j(\boldsymbol{\theta}) = 0$. These constraints restrict the system's parameters to lie on a specific <strong>submanifold</strong> within the larger parameter space.</p>
+                <p>At an optimal point $\boldsymbol{\theta}^*$ on this constraint surface, the system must be in equilibrium. This means the force from the potential, $\mathbf{F}_f = -\nabla f(\boldsymbol{\theta}^*)$, cannot have any component tangent to the surface, otherwise the particle would slide along the surface to a lower potential. Therefore, the force vector $-\nabla f(\boldsymbol{\theta}^*)$ must be entirely <strong>normal</strong> (perpendicular) to the constraint surface. A fundamental geometric fact is that the gradient of the constraint function, $\nabla g(\boldsymbol{\theta})$, is also a vector field that is everywhere normal to the surface defined by $g(\boldsymbol{\theta})=c$.</p>
+                <p>Since both $-\nabla f$ and $\nabla g$ are normal to the same surface at the optimal point, they must be parallel vectors. This geometric argument leads directly to the core equation: there must exist a scalar $\lambda$, the <strong>Lagrange multiplier</strong>, such that:</p>
+                $$ -\nabla f(\boldsymbol{\theta}^*) = \lambda \nabla g(\boldsymbol{\theta}^*) \quad \implies \quad \nabla f(\boldsymbol{\theta}^*) + \lambda \nabla g(\boldsymbol{\theta}^*) = 0 $$
+                <p>The multiplier $\lambda$ represents the magnitude of the <strong>constraint force</strong> required to counteract the potential force and keep the particle on the surface. To solve this, we define a new, unconstrained function called the <strong>Lagrangian</strong>, $\mathcal{L}(\boldsymbol{\theta}, \lambda) = f(\boldsymbol{\theta}) + \lambda g(\boldsymbol{\theta})$, and find its stationary points by setting its gradients with respect to both $\boldsymbol{\theta}$ and $\lambda$ to zero.</p>
+                
+                <blockquote>
+                    <p><strong>Worked Example:</strong> Let's find the maximum value of the function $f(x,y) = 4 - x^2 - y^2$ subject to the linear constraint $g(x,y) = x+y-1=0$.
+                    <ol>
+                        <li><strong>Physical Intuition:</strong> The function $f(x,y)$ is an inverted paraboloid (a hill) centered at the origin. The constraint $g(x,y)=0$ is a straight line ($y=1-x$) that cuts across this hill. We are looking for the highest point on the hill that is also on the line. At this point, the gradient of the hill (which points straight towards the origin) must be perpendicular to the constraint line.</li>
+                        <li><strong>Form the Lagrangian:</strong> $\mathcal{L}(x, y, \lambda) = (4 - x^2 - y^2) + \lambda(x+y-1)$.</li>
+                        <li><strong>Compute Gradients:</strong>
+                            <ul>
+                                <li>$\frac{\partial \mathcal{L}}{\partial x} = -2x + \lambda = 0 \implies \lambda = 2x$</li>
+                                <li>$\frac{\partial \mathcal{L}}{\partial y} = -2y + \lambda = 0 \implies \lambda = 2y$</li>
+                                <li>$\frac{\partial \mathcal{L}}{\partial \lambda} = x+y-1 = 0$ (This just recovers our constraint)</li>
+                            </ul>
+                        </li>
+                        <li><strong>Solve the System:</strong> From the first two equations, we see that $2x = 2y \implies x=y$. Substituting this into the third equation gives $x+x-1=0 \implies 2x=1 \implies x=1/2$. Therefore, $y=1/2$. The optimal point is $(1/2, 1/2)$. The maximum value is $f(1/2, 1/2) = 4 - (1/4) - (1/4) = 3.5$. The Lagrange multiplier is $\lambda = 2x = 1$, which can be interpreted as the "force" needed to enforce the constraint.</li>
+                    </ol>
+                </blockquote></li>
+                
+                <li><p><strong>Karush-Kuhn-Tucker (KKT) Conditions (Inequality Constraints)</strong></p>
+                <p>For inequality constraints like $h_i(\boldsymbol{\theta}) \le 0$, which confine the particle to a <em>region</em> rather than a surface, the logic extends. The full set of necessary conditions for an optimum are the celebrated KKT conditions. Here is a brief justification for them:</p>
+                <ol>
+                    <li><strong>Stationarity</strong>: $\nabla f(\boldsymbol{\theta}^*) + \sum_i \mu_i^* \nabla h_i(\boldsymbol{\theta}^*) = \mathbf{0}$. This is the same force-balance condition. The potential force must be balanced by the sum of forces from all <em>active</em> constraints (those for which $h_i(\boldsymbol{\theta}^*) = 0$).</li>
+                    <li><strong>Primal Feasibility</strong>: $h_i(\boldsymbol{\theta}^*) \le 0$. This is trivial; it simply states that the solution must be within the allowed region.</li>
+                    <li><strong>Dual Feasibility</strong>: $\mu_i^* \ge 0$. The gradient $\nabla h_i$ points in the direction where $h_i$ increases (i.e., "out" of the feasible region). A constraint force must push the particle "in" to the feasible region, so it must act in the direction of $-\nabla h_i$. Therefore, the constraint force $-\mu_i \nabla h_i$ must have a non-negative multiplier $\mu_i$ to ensure it pushes in the correct, containing direction.</li>
+                    <li><strong>Complementary Slackness</strong>: $\mu_i^* h_i(\boldsymbol{\theta}^*) = 0$. This is the crucial condition. It states that for any given constraint $i$, either its multiplier $\mu_i^*$ is zero, or the constraint itself is active ($h_i(\boldsymbol{\theta}^*) = 0$). This makes perfect physical sense:
+                        <ul>
+                            <li>If the optimal point is strictly <em>inside</em> the allowed region ($h_i(\boldsymbol{\theta}^*) < 0$), then that boundary is not being touched. The constraint is irrelevant and cannot be exerting a force. Thus, its force multiplier $\mu_i^*$ must be zero.</li>
+                            <li>If a constraint is exerting a non-zero force ($\mu_i^* > 0$), it can only be because the particle is actively pushing against that boundary, meaning the constraint must be active ($h_i(\boldsymbol{\theta}^*) = 0$).</li>
+                        </ul>
+                    </li>
+                </ol></li>
+            </ul>
+
+            <h4>3.4 Convex Optimization: The Guarantee of a Unique Ground State</h4>
+            <p>A special and important class of problems is <strong>convex optimization</strong>, where the objective function is convex (shaped like a "bowl") and the feasible set is also convex. The power of convex optimization stems from a remarkable property: <strong>any local minimum is also a global minimum</strong>. From a physics perspective, this is analogous to a system with a potential energy landscape that has a <strong>unique, stable ground state</strong> and no other metastable states (like the potential of a simple harmonic oscillator). For such a system, any local search algorithm like gradient descent is guaranteed to find the true global optimum. However, many of the most powerful machine learning models, like deep neural networks, have highly <strong>non-convex</strong> landscapes, where the guarantee of finding the global ground state is lost.</p>
+
+            <h4>3.5 Gradient-Free Methods: Black-Box Optimization</h4>
+            <p>While gradient-based methods are the workhorse of deep learning, a separate class of optimization techniques, often called <strong>gradient-free</strong> or <strong>black-box</strong> methods, is essential when the objective function $\mathcal{L}(\boldsymbol{\theta})$ cannot be differentiated. This occurs in many real-world scenarios:</p>
+            <ul>
+                <li>The loss function is the result of a complex, non-differentiable physical simulation.</li>
+                <li>The function is truly a "black box," like trying to find the best chemical composition for a material by running a real-world experiment for each evaluation.</li>
+                <li>The loss landscape is extremely "noisy" or rugged, with many tiny, sharp local minima where the gradient is misleading.</li>
+            </ul>
+            <p>These methods treat the objective function as an oracle: they can query its value (the "energy") at any point $\boldsymbol{\theta}$, but they get no gradient information (no "force vector"). Here we explore the principles behind the main families of these techniques.</p>
+            
+            <ul>
+                <li>
+                    <p><strong>Direct Search Methods (e.g., Nelder-Mead)</strong></p>
+                    <p><strong>Principle:</strong> This is the most heuristic family of methods. They navigate the search space using a set of simple geometric rules, without building an explicit model of the function. They work by comparing the loss values at a pattern of points and moving towards a better pattern in the next step.</p>
+                    <p><strong>Physical Analogy:</strong> Imagine a blindfolded person trying to find the lowest point in a hilly field. They can't see the overall landscape (no gradient). Instead, they might use a tripod. They feel the height at the location of each leg of the tripod. To move downhill, they would pick up the leg that is at the highest point and move it to a new, lower location. The Nelder-Mead algorithm works in a very similar way.</p>
+                    <p><strong>How it Works (The Nelder-Mead Algorithm):</strong> The algorithm maintains a "simplex" of $N+1$ points in the $N$-dimensional parameter space (a triangle in 2D, a tetrahedron in 3D, etc.). It then iteratively performs the following steps:</p>
+                    <ol>
+                        <li><strong>Order:</strong> Evaluate the loss at all vertices of the simplex and order them from best (lowest loss) to worst (highest loss).</li>
+                        <li><strong>Reflect:</strong> Try to find a better point by reflecting the worst point through the centroid of the remaining points. It's like flipping the highest tripod leg to the other side.</li>
+                        <li><strong>Expand:</strong> If the reflected point is very good (better than all other points), expand further in that promising direction to take a bigger step.</li>
+                        <li><strong>Contract:</strong> If the reflected point is not good, it's likely the minimum is inside the current simplex. Contract the worst point towards the centroid to search within.</li>
+                        <li><strong>Shrink:</strong> If contraction also fails, shrink the entire simplex towards the best point, effectively narrowing the search area.</li>
+                    </ol>
+                    <p>This sequence of geometric operations allows the simplex to crawl, stretch, and shrink as it feels its way downhill. It is simple to implement but can be slow and is not guaranteed to find a global minimum.</p>
+                </li>
+
+                <li>
+                    <p><strong>Bayesian Optimization</strong></p>
+                    <p><strong>Principle:</strong> This is an "intelligent search" strategy for optimizing black-box functions that are very expensive to evaluate. Instead of searching blindly, it builds a probabilistic model of the objective function and uses that model to intelligently decide where to sample next, balancing exploration with exploitation.</p>
+                    <p><strong>Physical Analogy:</strong> This is analogous to a physicist optimizing a complex experiment that takes a week to run. They won't just try random settings. After the first few runs, they'll build a mental model ("it seems to improve when I increase pressure, but I'm uncertain what happens at very high temperatures"). They'll use this model and their uncertainty to pick the <em>most informative</em> next experiment to run. Bayesian Optimization formalizes this process.</p>
+                    <p><strong>How it Works (The Mathematics):</strong></p>
+                    <ol>
+                        <li><strong>Surrogate Model:</strong> The algorithm first builds a probabilistic model to approximate the unknown loss function. This is typically a <strong>Gaussian Process (GP)</strong>. A GP is a powerful statistical tool that doesn't just provide a best-guess prediction for the loss at any point, but also an estimate of the <em>uncertainty</em> in that prediction.</li>
+                        <li><strong>Acquisition Function:</strong> Based on the surrogate model's predictions (mean and uncertainty), an "acquisition function" is used to decide the next point to query. This function represents the potential utility of sampling at each point. A common choice is <strong>Expected Improvement (EI)</strong>, which calculates the expected amount of improvement over the current best value we'd get by sampling at a given point. The acquisition function naturally balances:
+                            <ul>
+                                <li><strong>Exploitation:</strong> Sampling in regions where the surrogate model predicts a low loss (a promising area).</li>
+                                <li><strong>Exploration:</strong> Sampling in regions where the uncertainty is high (we don't know what's there, so a surprisingly good value might be hiding).</li>
+                            </ul>
+                        </li>
+                        <li><strong>Update:</strong> The chosen point is evaluated on the true, expensive loss function. This new (point, value) pair is added to our dataset, and the surrogate model is updated to be more accurate. This cycle repeats.</li>
+                    </ol>
+                    <p>This method is highly sample-efficient, making it ideal for tuning the hyperparameters of a deep learning model or optimizing complex physical simulations.</p>
+                </li>
+                
+                <li>
+                    <p><strong>Simulated Annealing</strong></p>
+                    <p><strong>Principle:</strong> A stochastic search method that mimics the physical process of annealing to escape local minima and find a global minimum.</p>
+                    <p><strong>Physical Analogy:</strong> The analogy is direct. In metallurgy, a material is heated to a high temperature, causing its atoms to move around randomly. It is then cooled very slowly. This slow cooling allows the atoms to settle into a highly ordered, minimum-energy crystal lattice structure. If cooled too quickly ("quenching"), the atoms get trapped in a disordered, high-energy amorphous state (a local minimum). Simulated annealing uses a computational "temperature" to control the randomness of its search in the same way.</p>
+                    <p><strong>How it Works (The Metropolis-Hastings Algorithm):</strong> The algorithm explores the parameter space as follows:</p>
+                    <ol>
+                        <li>Start with a random parameter configuration $\boldsymbol{\theta}$ and a high "temperature" $T$.</li>
+                        <li>Propose a small, random move to a new state $\boldsymbol{\theta}_{\text{cand}}$.</li>
+                        <li>Calculate the change in energy (loss), $\Delta \mathcal{L} = \mathcal{L}(\boldsymbol{\theta}_{\text{cand}}) - \mathcal{L}(\boldsymbol{\theta})$.</li>
+                        <li>If the move is downhill ($\Delta \mathcal{L} < 0$), it is always accepted.</li>
+                        <li>If the move is uphill ($\Delta \mathcal{L} \ge 0$), it is accepted with a probability given by the <strong>Boltzmann factor</strong>: $P(\text{accept}) = e^{-\Delta \mathcal{L} / T}$.</li>
+                        <li>This process is repeated many times, and then the temperature $T$ is slowly lowered according to a "cooling schedule."</li>
+                    </ol>
+                    <p>The role of temperature is critical. At high $T$, the acceptance probability for uphill moves is large, allowing the system to explore the landscape broadly and escape from local minima. As $T$ is lowered, the acceptance rule becomes stricter, and the system begins to settle into the deepest minimum it has found. If cooled infinitely slowly, it is theoretically guaranteed to find the global minimum.</p>
+                </li>
+                
+                <li>
+                    <p><strong>Evolutionary Algorithms</strong></p>
+                    <p><strong>Principle:</strong> A population-based search strategy that mimics the process of biological evolution by natural selection.</p>
+                    <p><strong>Physical Analogy:</strong> While the primary analogy is biological, it can be viewed through a statistical physics lens. Instead of simulating a single particle exploring a landscape (like in Simulated Annealing), we simulate an entire ensemble of particles. These particles don't just explore independently; they interact and "reproduce" by combining their states, allowing the population as a whole to flow towards lower-energy regions of the landscape over generations.</p>
+                    <p><strong>How it Works (The Evolutionary Loop):</strong></p>
+                    <ol>
+                        <li><strong>Initialization:</strong> Create an initial "population" of $P$ random candidate solutions (parameter vectors).</li>
+                        <li><strong>Evaluation:</strong> Evaluate the "fitness" of each individual in the population by computing its loss. Lower loss corresponds to higher fitness.</li>
+                        <li><strong>Selection:</strong> Select individuals to be "parents" for the next generation. This selection is probabilistic, with higher-fitness individuals having a greater chance of being chosen (e.g., via "roulette wheel selection").</li>
+                        <li><strong>Crossover (Recombination):</strong> Create "offspring" by combining the parameter vectors of parent pairs. For example, a new individual could be formed by taking the first half of the parameters from parent A and the second half from parent B. This allows for large "jumps" across the landscape by combining good partial solutions.</li>
+                        <li><strong>Mutation:</strong> Introduce small, random changes into the parameters of the new offspring (e.g., adding Gaussian noise to some components). This maintains diversity in the population and allows for novel exploration.</li>
+                        <li><strong>Replacement:</strong> The new generation of offspring replaces the old population, and the cycle repeats.</li>
+                    </ol>
+                    <p>Evolutionary algorithms perform a parallel search, making them less likely to get stuck in a single local minimum. They are gradient-free and can handle arbitrarily complex and non-differentiable loss functions, making them a powerful, general-purpose optimization tool.</p>
+                </li>
+            </ul>
+        </main>
+        
+        <hr>
+        
+        <nav class="navigation-links" style="display: flex; justify-content: space-between;">
+            <a href="ch2.html">← Chapter 2</a>
+            <a href="ch4.html">Chapter 4: Linear Models and the Power of Regularization →</a>
+        </nav>
+    </div>
+
+</body>
+</html>

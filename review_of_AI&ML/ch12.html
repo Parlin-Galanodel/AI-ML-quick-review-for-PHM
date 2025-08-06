@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 12: Modeling Dynamics | AI for the Physicist</title>
+    
+    <link rel="stylesheet" href="css/style.css">
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true},{left: '$', right: '$', display: false}]});"></script>
+
+    <!-- Mermaid.js for rendering diagrams -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({startOnLoad:true});</script>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <p><a href="index.html">← Back to Table of Contents</a></p>
+            <h2>Chapter 12: Modeling Dynamics – RNNs, LSTMs, and State Space Models</h2>
+        </header>
+
+        <main>
+            <p>While CNNs are masters of spatial data, many physical systems and datasets are inherently sequential or temporal. We might want to predict the future trajectory of a particle, analyze a time-series of voltage measurements, or understand the sequence of amino acids in a protein. Recurrent Neural Networks (RNNs) and their modern successors are architectures designed specifically to process such sequential data by maintaining an internal memory.</p>
+
+            <h4>12.1 Recurrent Neural Networks (RNNs) as Discretized Dynamical Systems</h4>
+            <p>An RNN processes a sequence one element at a time. Crucially, it maintains an internal <strong>hidden state</strong> vector, $\mathbf{h}_t$, that acts as a memory, carrying information from past elements of the sequence to influence the processing of future elements.</p>
+            <p>The update rule for a simple RNN at each time step $t$ is:</p>
+            $$ \mathbf{h}_t = \sigma_h ( \mathbf{W}_{hh} \mathbf{h}_{t-1} + \mathbf{W}_{xh} \mathbf{x}_t + \mathbf{b}_h ) $$
+            $$ \mathbf{y}_t = \sigma_y ( \mathbf{W}_{hy} \mathbf{h}_t + \mathbf{b}_y ) $$
+            <p>Here, $\mathbf{x}_t$ is the input vector at time step $t$, $\mathbf{h}_{t-1}$ is the hidden state from the previous time step, and $\mathbf{h}_t$ is the new hidden state. Crucially, the weight matrices ($\mathbf{W}_{hh}, \mathbf{W}_{xh}, \mathbf{W}_{hy}$) are shared across all time steps.</p>
+            <p>This can be interpreted as the evolution equation for a <strong>discretized non-linear dynamical system</strong>.
+            <ul>
+                <li>The hidden state $\mathbf{h}_t$ is the <strong>state of the system</strong> at time $t$.</li>
+                <li>It evolves based on its previous state, $\mathbf{h}_{t-1}$ (the recurrent or memory term), and is influenced by an external input or <strong>driving force</strong>, $\mathbf{x}_t$.</li>
+            </ul>
+            The training process, called <strong>Backpropagation Through Time (BPTT)</strong>, involves "unrolling" the network through time and applying the standard backpropagation algorithm to the unrolled computational graph.</p>
+
+            <div class="figure">
+                <div class="mermaid">
+                    graph TD
+                        subgraph "RNN Cell Logic (at time t)"
+                            direction LR
+                            h_prev["h_t-1"] --> Whh["x W_hh"]
+                            x_t["x_t"] --> Wxh["x W_xh"]
+                            Whh & Wxh --> Sum["+ b_h"]
+                            Sum --> Sigma["σ_h"]
+                            Sigma --> h_t["h_t"]
+                        end
+
+                        subgraph "Unrolled in Time"
+                            direction LR
+                            x0 --> R0(RNN Cell)
+                            R0 --> h0
+                            h0 --> R1(RNN Cell)
+                            x1 --> R1
+                            R1 --> h1
+                            h1 --> R2(RNN Cell)
+                            x2 --> R2
+                            R2 --> h2
+                        end
+                </div>
+                <p class="caption"><b>Figure 12.1:</b> The structure of a simple RNN. The same cell logic (left) with its shared weights is applied at each time step. The hidden state h acts as a memory, passing information from one step to the next as the network is "unrolled" in time (right).</p>
+            </div>
+
+            <h4>12.2 The Challenge of Long-Range Temporal Correlations</h4>
+            <p>A key challenge in training simple RNNs is their difficulty in capturing <strong>long-range temporal dependencies</strong>. This is due to the infamous <strong>vanishing and exploding gradient problems</strong>.</p>
+            <p>During BPTT, the gradient of the loss with respect to an early hidden state is calculated by multiplying many instances of the Jacobian matrix $\frac{\partial \mathbf{h}_t}{\partial \mathbf{h}_{t-1}}$. This repeated multiplication acts like a power law. If the singular values of this Jacobian are consistently less than 1, the norm of the gradient will shrink exponentially as it propagates back in time, eventually <strong>vanishing</strong>. This means the model cannot learn from events that happened long ago, as the "error signal" from the future doesn't reach the distant past. Conversely, if the singular values are greater than 1, the gradient will grow exponentially and <strong>explode</strong>, leading to unstable training.</p>
+            <p>From a dynamical systems perspective, a vanishing gradient corresponds to the system's dynamics collapsing all trajectories to a single fixed-point attractor, losing all memory of its initial conditions. An exploding gradient corresponds to chaotic behavior, where the system is extremely sensitive to initial conditions. To learn long-range dependencies, the system must operate "at the edge of chaos," a state that is notoriously difficult for a simple RNN to maintain.</p>
+
+            <h4>12.3 Gated Architectures: LSTMs and GRUs</h4>
+            <p>To combat the vanishing gradient problem, more sophisticated recurrent units were designed. These units introduce <strong>gating mechanisms</strong>—small neural networks that learn to control the flow of information within the recurrent unit itself. They act like learned, adaptive valves.</p>
+            <p>The <strong>Long Short-Term Memory (LSTM)</strong> unit was the groundbreaking solution. An LSTM introduces a separate <strong>cell state</strong>, $\mathbf{c}_t$, which acts as an explicit memory conveyor belt. Information can flow down this belt largely unchanged, making it much easier to preserve dependencies across many time steps. The flow of information is controlled by three gates:</p>
+            <ol>
+                <li><strong>Forget Gate ($f_t$):</strong> Its job is to decide what information to throw away from the old cell state. It looks at the previous hidden state $\mathbf{h}_{t-1}$ and the current input $\mathbf{x}_t$ and outputs a vector of numbers between 0 ("completely forget this piece of memory") and 1 ("completely keep this piece of memory") for each component of the cell state.</li>
+                <li><strong>Input Gate ($i_t$):</strong> Its job is to decide what new information to store in the cell state. It has two parts: a sigmoid layer decides which values to update, and a tanh layer creates a vector of new candidate values, $\tilde{\mathbf{c}}_t$. The gate then selectively adds this new information to the cell state.</li>
+                <li><strong>Output Gate ($o_t$):</strong> Its job is to decide what to output as the new hidden state $\mathbf{h}_t$. It takes the newly updated cell state, filters it, and outputs the result as the new hidden state.</li>
+            </ol>
+            
+            <blockquote>
+                <p><strong>The Key to LSTM: The Cell State Update Equation</strong></p>
+                <p>The core of the LSTM's power lies in how it updates its cell state from the previous state $\mathbf{c}_{t-1}$ to the new state $\mathbf{c}_t$:</p>
+                $$ \mathbf{c}_t = (f_t \odot \mathbf{c}_{t-1}) + (i_t \odot \tilde{\mathbf{c}}_t) $$
+                <p>Let's break this down:</p>
+                <ul>
+                    <li>The symbol $\odot$ represents the <strong>Hadamard product</strong>, or <strong>element-wise multiplication</strong>. This is not matrix multiplication. It means you take two vectors of the same size and multiply their corresponding components. For example: $[a, b] \odot [c, d] = [ac, bd]$.</li>
+                    <li>The first term, $(f_t \odot \mathbf{c}_{t-1})$, is the "forget" operation. The forget gate vector $f_t$ contains values between 0 and 1. If an element in $f_t$ is 0, the corresponding element in the old memory $\mathbf{c}_{t-1}$ is zeroed out (forgotten). If an element in $f_t$ is 1, the memory is passed through unchanged.</li>
+                    <li>The second term, $(i_t \odot \tilde{\mathbf{c}}_t)$, is the "write" operation. The input gate vector $i_t$ selectively allows parts of the new candidate information $\tilde{\mathbf{c}}_t$ to be written to the cell state.</li>
+                    <li>The final step is the **addition** of these two terms.</li>
+                </ul>
+                <p><strong>Why is this so important?</strong> The direct additive connection between $\mathbf{c}_t$ and $\mathbf{c}_{t-1}$ (scaled by the forget gate) creates an "information superhighway." During backpropagation, the gradient can flow backwards through time directly through this addition. This is much more stable than flowing through the repeated matrix multiplications of a simple RNN, which cause the gradient to vanish or explode. This structure makes it easy for the LSTM to "learn" to preserve information over very long time scales by simply setting the forget gate close to 1.</p>
+            </blockquote>
+
+            <h4>12.4 Modern Alternative: State Space Models (SSMs)</h4>
+            <p>Recently, a powerful alternative to RNNs has emerged with deep roots in classical control theory: <strong>State Space Models (SSMs)</strong>. An SSM represents a system using a pair of continuous-time linear ordinary differential equations that are then discretized. The key innovations of modern SSMs, such as S4 and Mamba, are:</p>
+            <ol>
+                <li><strong>Learned Dynamics:</strong> The state matrices $(\mathbf{A}, \mathbf{B}, \mathbf{C}, \mathbf{D})$ that define the system's dynamics are learned from data.</li>
+                <li><strong>Convolutional Form:</strong> The state matrix $\mathbf{A}$ is chosen to have a special structure that allows the entire sequential recurrence to be computed in parallel as a single large <strong>convolutional filter</strong>. This means SSMs can be trained as efficiently as a CNN, avoiding the slow sequential loops of an RNN.</li>
+                <li><strong>Selection Mechanisms:</strong> The most recent architectures, like Mamba, reintroduce non-linearities by making the state matrices themselves be functions of the input. This input-dependent gating allows the model to selectively focus on or ignore parts of the input sequence, similar in spirit to the gates in LSTMs.</li>
+            </ol>
+            <p>SSMs offer a compelling blend of the time-evolving structure of RNNs and the parallelizable, convolutional nature of CNNs, representing a major new direction in deep learning for long sequential data.</p>
+        <h4>12.5 A Complete RNN/LSTM Model: From Sequence to Prediction</h4>
+            <p>Understanding the internal logic of an LSTM cell is crucial, but it's also important to see how these cells are used to build a complete model for a specific task.</p>
+            
+            <h5>The Structure of an LSTM Network</h5>
+            <p>The diagrams below, from Christopher Olah's renowned blog post, provide a clear visual of the internal workings of an LSTM cell and its core components.</p>
+            
+            <div class="figure">
+                 <img src="https://colah.github.io/posts/2015-08-Understanding-LSTMs/img/LSTM3-chain.png" alt="Unrolled LSTM Network" style="max-width: 100%;">
+                <p class="caption"><b>Figure 12.2:</b> The unrolled structure of an LSTM network. The top line represents the cell state, or "memory conveyor belt," which can carry information across many time steps. The gates (in yellow) control the flow of information into and out of this cell state. (Image credit: Christopher Olah, colah.github.io)</p>
+            </div>
+
+            <p>A common task for an RNN/LSTM is language modeling: predicting the next word in a sequence. A typical architecture would be:</p>
+            <ol>
+                <li><strong>Input/Embedding Layer:</strong> Each word in the input sequence is converted into a vector representation (an "embedding").</li>
+                <li><strong>LSTM Layer(s):</strong> This sequence of vectors is fed one-by-one into one or more LSTM layers. At each time step $t$, the LSTM takes the vector for the word at position $t$ and the hidden state from the previous step $h_{t-1}$ to produce a new hidden state $h_t$. This hidden state is a rich, contextual representation of the sequence up to that point.</li>
+                <li><strong>Output Layer (Classifier):</strong> The hidden state $h_t$ at each time step is then passed to a standard fully-connected linear layer (often called a "decoder" or "language model head"). This layer maps the high-dimensional hidden state to a vector the size of the entire vocabulary.</li>
+                <li><strong>Softmax Activation:</strong> A softmax function is applied to this final vector to convert it into a probability distribution over all possible next words.</li>
+            </ol>
+            
+            <h5>Loss Function and Training with BPTT</h5>
+            <p>To train this model, we need to define a loss function that measures how "surprised" the model is by the actual next word in the training data.</p>
+            <ol>
+                <li><strong>Forward Pass:</strong> We feed a training sequence into the network. At each time step $t$, the model outputs a probability distribution over the vocabulary for the word at step $t+1$.</li>
+                <li><strong>Compute Loss:</strong> For each time step, we compare the model's predicted probability distribution with the true next word using the <strong>Cross-Entropy Loss</strong>. The total loss for the sequence is typically the sum or average of the losses at each time step.</li>
+                <li><strong>Backward Pass (Backpropagation Through Time):</strong> This is the key to training RNNs. The gradients of the total loss are computed with respect to all the model's parameters. Because a parameter (like the weight matrix $\mathbf{W}_{hh}$) is used at every single time step, the total gradient for that parameter is the <em>sum</em> of the gradients calculated at each time step. The chain rule effectively propagates the error signal backward through the unrolled graph, from the end of the sequence to the beginning. This process is called <strong>Backpropagation Through Time (BPTT)</strong>.</li>
+                <li><strong>Update Weights:</strong> The model's parameters (in the embedding, LSTM layers, and output layer) are updated using an optimizer like Adam.</li>
+            </ol>
+            <p>By repeating this process on many sequences, the LSTM learns to adjust its gates and weights to effectively remember relevant information and predict subsequent elements in a sequence, whether it's the next word in a sentence or the next state in a physical system's trajectory.</p>
+        </main>
+        
+        <hr>
+        
+        <nav class="navigation-links" style="display: flex; justify-content: space-between;">
+            <a href="ch11.html">← Chapter 11</a>
+            <a href="ch13.html">Chapter 13: The Transformer →</a>
+        </nav>
+    </div>
+
+</body>
+</html>

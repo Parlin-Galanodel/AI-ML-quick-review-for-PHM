@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 13: The Transformer | AI for the Physicist</title>
+    
+    <link rel="stylesheet" href="css/style.css">
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true},{left: '$', right: '$', display: false}]});"></script>
+
+    <!-- Mermaid.js for rendering diagrams -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({startOnLoad:true});</script>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <p><a href="index.html">← Back to Table of Contents</a></p>
+            <h2>Chapter 13: The Transformer – A Model of All-to-All Interactions</h2>
+        </header>
+
+        <main>
+            <p>In 2017, a new architecture called the <strong>Transformer</strong> was introduced, initially for machine translation tasks. It swiftly revolutionized Natural Language Processing (NLP) and has since proven to be a remarkably general and powerful architecture for a wide range of data types. The Transformer's core innovation was to completely discard the sequential recurrence of RNNs and the local receptive fields of CNNs, and instead rely entirely on a mechanism called <strong>self-attention</strong> to model dependencies between any two points in the input, regardless of their distance.</p>
+
+            <h4>13.1 The Attention Mechanism: A Learnable Mean Field</h4>
+            <p>Imagine trying to understand the meaning of the word "it" in the sentence: "The rocket launched into space, and it soared high above the clouds." To resolve what "it" refers to, we need to consider its relationship with other words, particularly "rocket." RNNs would struggle with this, as the information from "rocket" would have to be carried sequentially through the hidden state for several steps, its signal potentially fading.</p>
+            <p>The <strong>self-attention</strong> mechanism allows the model to do this directly. For each element (or "token") in an input sequence, self-attention computes a new representation by taking a weighted average of <em>all other elements</em> in the sequence. The key is that the weights are not fixed; they are computed dynamically based on the learned relationship between the elements.</p>
+            
+            <p><strong>The Query, Key, and Value Analogy</strong></p>
+            <p>The mechanism works by projecting each input vector $\mathbf{x}_i$ into three new vectors using learned weight matrices:</p>
+            <ul>
+                <li><strong>Query ($\mathbf{q}_i$)</strong>: $\mathbf{q}_i = \mathbf{W}_Q \mathbf{x}_i$. The query represents what this position is "looking for." It's like a question this token is asking about the rest of the sequence. For the token "it," the query might be "What kind of object am I?"</li>
+                <li><strong>Key ($\mathbf{k}_i$)</strong>: $\mathbf{k}_i = \mathbf{W}_K \mathbf{x}_i$. The key represents what information this position "provides" or its label. For the token "rocket," the key might be "I am a flying object."</li>
+                <li><strong>Value ($\mathbf{v}_i$)</strong>: $\mathbf{v}_i = \mathbf{W}_V \mathbf{x}_i$. The value is the actual content or representation of this position that will be passed on. For "rocket," this would be its rich contextual embedding.</li>
+            </ul>
+            <p>The attention weight between two tokens $i$ and $j$ is calculated based on the "compatibility" of the query from token $i$ with the key from token $j$. This is computed using a scaled dot product:</p>
+            $$ \text{score}_{ij} = \frac{\mathbf{q}_i^T \mathbf{k}_j}{\sqrt{d_k}} $$
+            <p>These scores are then passed through a softmax function to get the final attention weights, $\alpha_{ij}$, which are a set of positive numbers that sum to 1. The output vector for token $i$ is then a weighted sum of all value vectors:</p>
+            $$ \mathbf{z}_i = \sum_{j=1}^n \alpha_{ij} \mathbf{v}_j $$
+            <p>In our example, the dot product between the query of "it" and the key of "rocket" would be high, resulting in a large attention weight $\alpha_{\text{it, rocket}}$. The final representation of "it", $\mathbf{z}_{\text{it}}$, would therefore be heavily influenced by the value vector of "rocket," effectively enriching its meaning with the concept of a rocket.</p>
+			
+            <blockquote>
+                <p><strong>A Step-by-Step Numerical Example of Self-Attention</strong></p>
+                <p>Let's make this concrete. Imagine we have two input words, "Thinking" and "Machines", represented by embedding vectors. For simplicity, let's say they are:</p>
+                <p>$\mathbf{x}_1 (\text{Thinking}) = [1, 0, 1, 0]$<br>
+                   $\mathbf{x}_2 (\text{Machines}) = [0, 1, 0, 1]$</p>
+                <p>Let's also assume (for this one head) we have already learned simple weight matrices $\mathbf{W}_Q, \mathbf{W}_K, \mathbf{W}_V$. (In reality these are learned during training).</p>
+                <p><strong>Step 1: Create Query, Key, and Value vectors.</strong></p>
+                <p>We multiply the input vectors by the weight matrices. Let's say this gives us (simplified for clarity):</p>
+                <p>$\mathbf{q}_1 = [1, 1, 0]$; $\mathbf{k}_1 = [1, 0, 1]$; $\mathbf{v}_1 = [0, 1, 1]$<br>
+                   $\mathbf{q}_2 = [0, 1, 1]$; $\mathbf{k}_2 = [0, 1, 1]$; $\mathbf{v}_2 = [1, 1, 0]$</p>
+
+                <p><strong>Step 2: Calculate Attention Scores.</strong></p>
+                <p>We need to find out how much "Thinking" ($\mathbf{x}_1$) should pay attention to "Machines" ($\mathbf{x}_2$) and to itself. We do this by taking the dot product of its query, $\mathbf{q}_1$, with all the keys. (Let's assume $\sqrt{d_k}=1$ for simplicity).</p>
+                <p>Score for itself: $\text{score}_{1,1} = \mathbf{q}_1 \cdot \mathbf{k}_1 = (1)(1) + (1)(0) + (0)(1) = 1$</p>
+                <p>Score for "Machines": $\text{score}_{1,2} = \mathbf{q}_1 \cdot \mathbf{k}_2 = (1)(0) + (1)(1) + (0)(1) = 1$</p>
+                
+                <p><strong>Step 3: Normalize with Softmax.</strong></p>
+                <p>We apply the softmax function to the scores to get the final attention weights, which sum to 1.</p>
+                <p>$\alpha_{1,1} = \frac{e^1}{e^1 + e^1} = \frac{2.718}{2.718 + 2.718} = 0.5$</p>
+                <p>$\alpha_{1,2} = \frac{e^1}{e^1 + e^1} = 0.5$</p>
+                <p>In this simplified case, the word "Thinking" pays equal attention to itself and to "Machines".</p>
+
+                <p><strong>Step 4: Compute the Final Output Vector.</strong></p>
+                <p>The final output for "Thinking", $\mathbf{z}_1$, is the weighted sum of all the value vectors.</p>
+                $$ \mathbf{z}_1 = (\alpha_{1,1} \times \mathbf{v}_1) + (\alpha_{1,2} \times \mathbf{v}_2) $$
+                $$ \mathbf{z}_1 = (0.5 \times [0, 1, 1]) + (0.5 \times [1, 1, 0]) $$
+                $$ \mathbf{z}_1 = [0, 0.5, 0.5] + [0.5, 0.5, 0] = [0.5, 1, 0.5] $$
+                <p>This new vector, $\mathbf{z}_1$, is the updated representation of "Thinking" after it has attended to the context. It has incorporated information from "Machines" into its own representation. This process is done in parallel for every token in the sequence.</p>
+            </blockquote>
+            <p>This all-to-all interaction is formally analogous to a <strong>mean-field approximation</strong> in statistical physics. Each token updates its state based on a context vector that is a weighted average—a "mean field"—of all other tokens in the sequence. Unlike in simple physical models, this interaction field is highly context-dependent and dynamic, as the interaction strength (the attention weight) is determined by the learned query-key dot product.</p>
+
+            <h4>13.2 The Full Architecture: Stacking the Blocks</h4>
+            <p>A full Transformer model is built by stacking these self-attention mechanisms into a cohesive architecture.</p>
+            <p>A full Transformer model is built by stacking these self-attention mechanisms into a cohesive architecture.</p>
+            <ul>
+                <li><strong>Multi-Head Attention</strong>: Instead of one set of attention weights, the model learns multiple "attention heads" in parallel. Each head has its own set of $(\mathbf{W}_Q, \mathbf{W}_K, \mathbf{W}_V)$ matrices. This is like having a committee of experts looking at the sentence. One expert (head) might focus on syntactic relationships ("what is the verb?"), another might focus on semantic relationships ("what objects are being discussed?"), and so on. Their findings are then combined to produce a richer final representation.</li>
+                <li><strong>Positional Encodings</strong>: Since self-attention treats the input as a set of vectors, it is permutation-invariant and has no inherent sense of sequence order. To fix this, a "positional encoding" vector is added to each input embedding. The original paper used a clever choice of sine and cosine functions of different frequencies. This allows the model to learn relative positioning because the encoding for any position can be represented as a linear function of any other position's encoding.</li>
+                <li><strong>Feed-Forward Networks</strong>: After each attention sub-layer, each position's output vector is passed through an identical two-layer MLP. This provides additional non-linear processing capacity, allowing the model to process the information gathered by the attention heads in more complex ways.</li>
+                <li><strong>Residual Connections and Layer Normalization</strong>: Each sub-layer (attention and feed-forward) is wrapped in a residual connection and a layer normalization step: $\text{LayerNorm}(\mathbf{x} + \text{Sublayer}(\mathbf{x}))$. The residual connections are crucial for training very deep Transformers. Layer Normalization helps stabilize the training by normalizing the inputs to each sub-layer across the feature dimension.</li>
+            </ul>
+            <h4>13.3 Transformer Variants: Encoder, Decoder, and Encoder-Decoder</h4>
+            <p>The same building blocks can be arranged in different ways for different tasks:</p>
+            <ul>
+                <li><strong>Encoder-Decoder (The Original Transformer):</strong> Used for sequence-to-sequence tasks like translation. The Encoder processes the entire input sentence. The Decoder then generates the output sentence one word at a time, using cross-attention to look back at the encoded input for context.</li>
+                <li><strong>Encoder-Only (e.g., BERT):</strong> These models are designed to build rich contextual representations of an input. They are pre-trained on tasks like predicting masked words ("The ___ sat on the mat"). They are excellent for analysis tasks like sentiment classification or question answering.</li>
+                <li><strong>Decoder-Only (e.g., GPT series):</strong> These models are pure generative models. They are trained to predict the next word in a sequence. By repeatedly predicting the next word and feeding it back as input, they can generate long, coherent passages of text.</li>
+            </ul>
+            
+            <div class="figure">
+                <div class="mermaid">
+                    graph TD
+                        subgraph "Encoder Block"
+                            A[Input] --> B[Multi-Head Self-Attention]
+                            A --> C(Add & Norm)
+                            B --> C
+                            C --> D[Feed-Forward Network]
+                            C --> E(Add & Norm)
+                            D --> E
+                            E --> F[Output]
+                        end
+
+                        subgraph "Decoder Block"
+                            G[Input] --> H[Masked Self-Attention]
+                            G --> I(Add & Norm)
+                            H --> I
+                            I --> J[Cross-Attention]
+                            EncoderOutput[From Encoder] --> J
+                            I --> K(Add & Norm)
+                            J --> K
+                            K --> L[Feed-Forward Network]
+                            K --> M(Add & Norm)
+                            L --> M
+                            M --> N[Output]
+                        end
+                </div>
+                <p class="caption"><b>Figure 13.1:</b> The modular architecture of the Transformer. The Encoder stack (left) is composed of layers with self-attention. The Decoder stack (right) has similar layers but includes a second cross-attention mechanism that allows it to query the final representations from the Encoder. Residual connections and layer normalization are applied after every sub-layer.</p>
+            </div>
+			
+            <h4>13.4 The Rise of Foundation Models</h4>
+            <p>The scalability and parallelizable nature of the Transformer have been key to the development of modern <strong>Foundation Models</strong> like the GPT series (decoder-only) and BERT (encoder-only). By training massive Transformer models on vast, web-scale datasets, these models learn incredibly rich and general-purpose representations of data. They can then be adapted to a wide variety of downstream tasks with little or no task-specific training, a process known as <strong>transfer learning</strong>. The surprising <strong>emergent abilities</strong> of these models at scale have made the Transformer the de facto architecture for large-scale AI.</p>
+        </main>
+        
+        <hr>
+        
+        <nav class="navigation-links" style="display: flex; justify-content: space-between;">
+            <a href="ch12.html">← Chapter 12</a>
+            <a href="ch14.html">Chapter 14: The Enigma of Scale and Emergence →</a>
+        </nav>
+    </div>
+
+</body>
+</html>

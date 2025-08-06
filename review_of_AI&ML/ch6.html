@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 6: Decision Trees and Ensembles | AI for the Physicist</title>
+    
+    <link rel="stylesheet" href="css/style.css">
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true},{left: '$', right: '$', display: false}]});"></script>
+
+    <!-- Mermaid.js for rendering diagrams -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({startOnLoad:true});</script>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <p><a href="index.html">← Back to Table of Contents</a></p>
+            <h2>Chapter 6: Decision Trees and Ensemble Methods: The Wisdom of Crowds</h2>
+        </header>
+
+        <main>
+            <p>This chapter explores a class of models that are inherently non-linear and prized for their interpretability. We will then demonstrate how the core weakness of these models—their instability—can be transformed into a source of immense predictive power by combining many of them into an ensemble, a concept every physicist will recognize from statistical mechanics.</p>
+
+            <h4>6.1 Decision Trees: Hierarchical Phase Space Partitioning</h4>
+            <p>A decision tree builds a model by learning a sequence of simple "if-then-else" rules. This process corresponds to recursively partitioning the feature space—the system's <strong>phase space</strong>—into a set of simple, non-overlapping hyper-rectangles. A physicist might use a similar mental model to classify phases of matter: "Is the temperature above the critical point? If yes, is the pressure below the ambient pressure? If yes, then it's a gas." A decision tree automates the discovery of the optimal questions and thresholds.</p>
+            <p>The tree is built in a top-down, <strong>greedy</strong> fashion:</p>
+            <ol>
+                <li><strong>Start</strong>: Begin with the entire dataset at the root node.</li>
+                <li><strong>Find Best Split</strong>: The algorithm searches over every feature $j$ and every possible split point $s$ for that feature. It evaluates how "good" each split is.</li>
+                <li><strong>Measure Purity</strong>: The "best" split is the one that maximizes the <strong>purity</strong> of the two resulting child nodes. It's the split that does the best job of separating the classes.</li>
+                <li><strong>Recurse</strong>: This process is repeated on each new child node, until a stopping criterion is met (e.g., the node is perfectly pure, or a maximum tree depth is reached).</li>
+                <li><strong>Predict</strong>: To make a prediction for a new data point, we simply traverse the tree from the root down. The prediction is the majority class of the training samples in the final leaf node.</li>
+            </ol>
+            
+            <div class="figure">
+                <div class="mermaid">
+                    graph TD
+                        A[Root: Is Feature X₁ ≤ 0.5?] -->|Yes| B[Is Feature X₂ ≤ 2.1?];
+                        A -->|No| C[Leaf: Predict Class 1];
+                        
+                        B -->|Yes| D[Leaf: Predict Class 0];
+                        B -->|No| E[Leaf: Predict Class 1];
+
+                        style C fill:#ccf,stroke:#333
+                        style D fill:#f9f,stroke:#333
+                        style E fill:#ccf,stroke:#333
+                </div>
+                <p class="caption"><b>Figure 6.1:</b> A simple decision tree for a binary classification problem. The algorithm recursively asks questions about the features to partition the data into increasingly pure subsets, culminating in leaf nodes that make a final prediction.</p>
+            </div>
+
+            <h5>Measures of Impurity for Classification</h5>
+            <p>To make the splitting criterion precise, we need a mathematical measure of node impurity. Let $p_{mk}$ be the proportion of training observations in the $m$-th node that are from class $k$.</p>
+            <ul>
+                <li><p><strong>Gini Impurity</strong>: Measures the frequency with which any element would be mislabeled if it was randomly labeled according to the distribution of labels in the node.</p>
+                $$ G_m = \sum_{k=1}^K p_{mk}(1 - p_{mk}) = 1 - \sum_{k=1}^K p_{mk}^2 $$
+                <p>A Gini impurity of 0 means the node is perfectly pure (all samples belong to one class). A Gini of 0.5 (for two classes) means the node is perfectly impure (50/50 split).</p></li>
+                
+                <li><p><strong>Entropy</strong>: The node impurity can also be measured by the Shannon entropy of the class distribution within the node, which we know is a measure of disorder.</p>
+                $$ H_m = -\sum_{k=1}^K p_{mk} \log_2 p_{mk} $$
+                <p>A split is chosen to maximize the <strong>Information Gain</strong>, which is the reduction in entropy from the parent node to the weighted average entropy of the child nodes.It's like asking the question that provides the most information, reducing our uncertainty about the system the most.</p>
+				$$ \text{IG}(\text{Parent, Split}) = H(\text{Parent}) - \sum_{j \in \text{Children}} \frac{N_j}{N_{\text{Parent}}} H(\text{Child}_j) $$
+                </li>
+            </ul>
+
+            <blockquote>
+                <p><strong>A Detailed Example: Choosing the Best Split</strong></p>
+                <p>Imagine we have a dataset of 14 days, with features like `Outlook` and `Humidity`, to predict whether we `PlayTennis` (Yes/No). The root node contains all 14 samples: 9 "Yes" and 5 "No".</p>
+                <p><strong>Step 1: Calculate the Entropy of the Root Node</strong></p>
+                <p>The initial proportions are $p_{\text{Yes}} = 9/14$ and $p_{\text{No}} = 5/14$. The entropy of the parent node is:</p>
+                $$ H(\text{Root}) = - \left( \frac{9}{14} \log_2\frac{9}{14} + \frac{5}{14} \log_2\frac{5}{14} \right) \approx 0.940 \text{ bits} $$
+                <p>This is our starting level of disorder. Now let's test two potential splits.</p>
+
+                <p><strong>Step 2: Evaluate a Split on the 'Outlook' Feature</strong></p>
+                <p>The `Outlook` feature can be 'Sunny', 'Overcast', or 'Rainy'. This split creates three child nodes:</p>
+                <ul>
+                    <li><strong>Outlook=Sunny (5 days):</strong> 2 Yes, 3 No. Entropy: $H(\text{Sunny}) = -(\frac{2}{5}\log_2\frac{2}{5} + \frac{3}{5}\log_2\frac{3}{5}) \approx 0.971$</li>
+                    <li><strong>Outlook=Overcast (4 days):</strong> 4 Yes, 0 No. Entropy: $H(\text{Overcast}) = 0$ (This is a pure node!)</li>
+                    <li><strong>Outlook=Rainy (5 days):</strong> 3 Yes, 2 No. Entropy: $H(\text{Rainy}) = -(\frac{3}{5}\log_2\frac{3}{5} + \frac{2}{5}\log_2\frac{2}{5}) \approx 0.971$</li>
+                </ul>
+                <p>The weighted average entropy after this split is:</p>
+                $$ H(\text{Children}) = \frac{5}{14}H(\text{Sunny}) + \frac{4}{14}H(\text{Overcast}) + \frac{5}{14}H(\text{Rainy}) \approx 0.693 \text{ bits} $$
+                <p>The Information Gain for the `Outlook` split is: $IG(\text{Outlook}) = H(\text{Root}) - H(\text{Children}) \approx 0.940 - 0.693 = \mathbf{0.247}$ bits.</p>
+
+                <p><strong>Step 3: Evaluate a Split on the 'Humidity' Feature</strong></p>
+                <p>Let's test a binary split: `Humidity` $\le 75$.</p>
+                <ul>
+                    <li><strong>Humidity $\le 75$ (7 days):</strong> 6 Yes, 1 No. Entropy: $H(\text{Low}) \approx 0.592$</li>
+                    <li><strong>Humidity $> 75$ (7 days):</strong> 3 Yes, 4 No. Entropy: $H(\text{High}) \approx 0.985$</li>
+                </ul>
+                <p>The weighted average entropy is: $H(\text{Children}) = \frac{7}{14}H(\text{Low}) + \frac{7}{14}H(\text{High}) \approx 0.789$ bits.</p>
+                <p>The Information Gain for the `Humidity` split is: $IG(\text{Humidity}) = 0.940 - 0.789 = \mathbf{0.151}$ bits.</p>
+                
+                <p><strong>Conclusion:</strong> Since $IG(\text{Outlook}) > IG(\text{Humidity})$, the greedy algorithm would choose `Outlook` as the best feature for the first split at the root of the tree because it provides the biggest reduction in disorder.</p>
+            </blockquote>
+            
+
+            <p><strong>Strengths and Weaknesses:</strong> The primary strength of single decision trees is that they are highly <strong>interpretable</strong>. Their main weakness is that they are highly <strong>unstable</strong> and prone to <strong>overfitting</strong>. Small changes in the training data can lead to a completely different tree. This is a classic high-variance, low-bias model.</p>
+
+            <h4>6.2 Ensemble Methods: Statistical Mechanics of Models</h4>
+            <p>The instability of single decision trees turns out to be a feature, not a bug. <strong>Ensemble methods</strong> improve upon single models by combining the predictions of many of them. This is directly analogous to how statistical mechanics derives robust, stable macroscopic properties (like temperature) by averaging over a vast <strong>ensemble</strong> of fluctuating microscopic states. Instead of trusting a single, noisy microstate (one decision tree), we average over a diverse collection of them to get a stable, reliable prediction.</p>
+            
+            <h5>Bagging and Random Forests: Variance Reduction through Averaging</h5>
+            <p><strong>Bagging</strong> (short for <strong>Bootstrap Aggregating</strong>) is a general method to reduce the variance of a high-variance model. The core idea is simple: it's the same reason a physicist takes many measurements of an experiment and averages them. If you have $B$ independent measurements of a quantity, each with variance $\sigma^2$, the variance of their average is $\sigma^2/B$. Averaging smooths out random fluctuations.</p>
+            <p>However, we only have one dataset. If we train $B$ trees on the exact same data, we will get $B$ identical trees, and averaging them gives no benefit. The trick is to create many slightly different "pseudo-datasets" from our original dataset using a technique called <strong>bootstrapping</strong>. A bootstrap sample is a new dataset of the same size as the original, created by drawing samples from the original dataset <em>with replacement</em>. This means some original data points will appear multiple times in a bootstrap sample, and some won't appear at all.</p>
+            <p>The Bagging algorithm is therefore:</p>
+            <ol>
+                <li>Create $B$ different bootstrap samples from the original training set.</li>
+                <li>Train one decision tree on each of these $B$ bootstrap samples. This creates an ensemble of $B$ slightly different trees.</li>
+                <li>To make a prediction, get the prediction from all $B$ trees and combine them. For regression, you average the results. For classification, you take a majority vote.</li>
+            </ol>
+            
+            <p><strong>Random Forests</strong> take this one step further to solve a remaining problem. In Bagging, if one feature is particularly strong, most of the bootstrapped trees will still select that feature for their first split. This causes the trees to be correlated, which reduces the effectiveness of averaging. The Random Forest algorithm introduces an additional source of randomness to <strong>decorrelate the trees</strong>: when considering a split at any node in a tree, the algorithm is only allowed to choose from a small, random subset of the total features. This forces the trees in the ensemble to explore different features and find different underlying patterns in the data, making them more diverse and their average more robust.</p>
+
+            <h5>Boosting: A Stage-wise Additive Model</h5>
+            <p>In contrast to the parallel nature of bagging, <strong>boosting</strong> builds the ensemble sequentially. Its goal is primarily to reduce bias by building a single, highly accurate model in an iterative fashion. Each new weak learner is trained to correct the errors of the combined model so far.</p>
+            <p>The process of <strong>Gradient Boosting</strong> can be understood through an analogy of a team of specialists building a complex sculpture:</p>
+            <ol>
+                <li><strong>Start with a simple guess ($F_0$):</strong> The first model is a very simple "sculpture," like a rough block that vaguely resembles the final shape (e.g., predicting the average value for all data points). This initial model is very high-bias and wrong for almost every point.</li>
+                <li><strong>Calculate the errors (residuals):</strong> For each data point, we calculate the error: $r_i = y_i - F_0(\mathbf{x}_i)$. These residuals are the "mistakes" of our current sculpture.</li>
+                <li><strong>Train a specialist on the errors ($h_1$):</strong> A specialist (a new, shallow decision tree) comes in. They don't look at the original problem; they only look at the errors, $r_i$. Their entire job is to learn how to predict these mistakes. This tree, $h_1$, is an "error-correction specialist."</li>
+                <li><strong>Update the main model ($F_1$):</strong> We update our main model by adding the specialist's correction, but only a small fraction of it, controlled by a learning rate $\nu$: $F_1(\mathbf{x}) = F_0(\mathbf{x}) + \nu h_1(\mathbf{x})$. The sculpture is now slightly better.</li>
+                <li><strong>Repeat with a new specialist:</strong> We now calculate the <em>new</em>, smaller errors: $r_i = y_i - F_1(\mathbf{x}_i)$. A second specialist, $h_2$, is trained on these remaining, more subtle errors. The model is updated again: $F_2(\mathbf{x}) = F_1(\mathbf{x}) + \nu h_2(\mathbf{x})$.</li>
+            </ol>
+            <p>This process continues for $M$ steps. The final, highly accurate model, $F_M$, is the complete ensemble—the sum of the initial guess and all the specialist trees:</p>
+            $$ F_M(\mathbf{x}) = F_0(\mathbf{x}) + \sum_{m=1}^M \nu h_m(\mathbf{x}) $$
+            <p>Each tree is weak on its own, only knowing how to fix the errors of the trees that came before it. The power comes from their collective, sequential effort. This slow, stage-wise refinement can lead to models with extremely high predictive accuracy.</p>
+
+
+
+            <div class="figure-container" style="display: flex; justify-content: space-around; align-items: flex-start; flex-wrap: wrap; margin: 2em 0;">
+                <div class="figure" style="flex: 1; min-width: 300px; margin: 10px;">
+                    <p style="text-align:center; font-weight: bold;">Bagging / Random Forest (Parallel)</p>
+                    <div class="mermaid">
+                        graph TD
+                            A[Original Data] --> S1[Sample 1]
+                            A --> S2[Sample 2]
+                            A --> SN[...]
+                            
+                            subgraph "Independent Training"
+                                S1 --> T1[Tree 1]
+                                S2 --> T2[Tree 2]
+                                SN --> TN[Tree N]
+                            end
+
+                            T1 --> R{Final Prediction}
+                            T2 --> R
+                            TN --> R
+                    </div>
+                </div>
+                <div class="figure" style="flex: 1; min-width: 300px; margin: 10px;">
+                    <p style="text-align:center; font-weight: bold;">Boosting (Sequential)</p>
+                    <div class="mermaid">
+                        graph TD
+                            M0[F_0: Simple Model] --> E1{Error 1}
+                            E1 --> H1[h_1 learns Error 1]
+                            H1 --> M1[F_1 = F_0 + νh_1]
+                            M1 --> E2{Error 2}
+                            E2 --> H2[h_2 learns Error 2]
+                            H2 --> M2[F_2 = F_1 + νh_2]
+                            M2 --> ETC[...]
+                    </div>
+                </div>
+            </div>
+            <p class="caption" style="margin-top:-1em;"><b>Figure 6.2:</b> Comparison of parallel (Bagging/Random Forest) and sequential (Boosting) ensemble methods. Bagging trains many independent models and averages them to reduce variance. Boosting builds a chain of models, where each new model is trained to correct the errors of the previous ones to reduce bias.</p>
+        </main>
+        
+        <hr>
+        
+        <nav class="navigation-links" style="display: flex; justify-content: space-between;">
+            <a href="ch5.html">← Chapter 5</a>
+            <a href="ch7.html">Chapter 7: Unsupervised Learning →</a>
+        </nav>
+    </div>
+
+</body>
+</html>

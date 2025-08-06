@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chapter 5: Support Vector Machines | AI for the Physicist</title>
+    
+    <link rel="stylesheet" href="css/style.css">
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true},{left: '$', right: '$', display: false}]});"></script>
+
+    <!-- Mermaid.js for rendering diagrams -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({startOnLoad:true});</script>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <p><a href="index.html">← Back to Table of Contents</a></p>
+            <h2>Chapter 5: Support Vector Machines – Maximizing Margins in Hilbert Space</h2>
+        </header>
+
+        <main>
+            <p>Support Vector Machines (SVMs) offer a powerful and geometric approach to classification. Instead of modeling probabilities like logistic regression, SVMs aim to find the <em>optimal</em> decision boundary that separates the classes. This shift in perspective leads to models with strong theoretical guarantees and a unique way of handling non-linear data.</p>
+
+            <h4>5.1 The Maximal Margin Classifier: A Geometric Approach</h4>
+            <p>Imagine a binary classification dataset that is <strong>linearly separable</strong>, meaning there exists at least one hyperplane that can perfectly separate the data points of the two classes. Let the two classes be labeled $y_i \in \{-1, +1\}$. A separating hyperplane is defined by the equation $\mathbf{w}^T\mathbf{x} + b = 0$. For any such hyperplane, we can say that for all data points $(\mathbf{x}_i, y_i)$:</p>
+            $$ y_i(\mathbf{w}^T\mathbf{x}_i + b) > 0 $$
+            <p>If one such hyperplane exists, there are infinitely many. Which one should we choose? The SVM provides a definitive answer: we should choose the <strong>maximal margin hyperplane</strong>. This is the unique hyperplane that creates the widest possible "street" or "margin" between the classes, with the boundary equidistant from the nearest data points of both classes.</p>
+            <p>The distance from a point $\mathbf{x}_i$ to the hyperplane is given by $\frac{|\mathbf{w}^T\mathbf{x}_i + b|}{||\mathbf{w}||}$. We can scale $\mathbf{w}$ and $b$ such that for the points closest to the hyperplane (the ones on the edge of the street), we have $|\mathbf{w}^T\mathbf{x}_i + b| = 1$. These crucial points are the <strong>support vectors</strong>. The width of the margin is then the distance between the two hyperplanes $\mathbf{w}^T\mathbf{x} + b = 1$ and $\mathbf{w}^T\mathbf{x} + b = -1$, which can be shown to be $2/||\mathbf{w}||$.</p>
+            <p>To find the maximal margin hyperplane, we must <strong>maximize the margin $2/||\mathbf{w}||$</strong>. This is equivalent to <strong>minimizing $||\mathbf{w}||^2$</strong>, which is a mathematically more convenient quadratic optimization problem. The problem can be formally stated as:</p>
+            $$ \begin{aligned}
+            & \min_{\mathbf{w}, b} & & \frac{1}{2} ||\mathbf{w}||^2 \\
+            & \text{subject to} & & y_i(\mathbf{w}^T\mathbf{x}_i + b) \ge 1, \quad \text{for } i=1, \dots, N
+            \end{aligned} $$
+            <p>This is a convex optimization problem (a quadratic objective with linear constraints). The solution depends only on the data points that lie exactly on the margin boundary—the support vectors. All other points are irrelevant to defining the boundary. This provides a form of geometric robustness; the decision boundary is as far as possible from all data points.</p>
+
+
+            <div class="figure">
+                <div class="mermaid">
+                    graph TD
+                        subgraph "Maximal Margin Classifier"
+                            
+                            margin_plus["Margin Hyperplane<br>w^T x + b = 1"]
+                            decision_boundary["Decision Boundary<br>w^T x + b = 0"]
+                            margin_minus["Margin Hyperplane<br>w^T x + b = -1"]
+
+                            sv_plus("Support Vector (+1)")
+                            sv_minus("Support Vector (-1)")
+                            other_point("Other Point (+1)")
+
+                            other_point -.- margin_plus
+                            sv_plus --> margin_plus
+                            decision_boundary -.- margin_plus
+                            decision_boundary -.- margin_minus
+                            sv_minus --> margin_minus
+
+                            style decision_boundary stroke-width:3px,stroke:#4a443d
+                            style margin_plus stroke-width:2px,stroke-dasharray:5 5,stroke:#8c6d46
+                            style margin_minus stroke-width:2px,stroke-dasharray:5 5,stroke:#8c6d46
+                            style sv_plus stroke-width:2px,stroke:#3a352f,fill:#e0dccc
+                            style sv_minus stroke-width:2px,stroke:#3a352f,fill:#e0dccc
+                        end
+                </div>
+                <p class="caption"><b>Figure 5.1:</b> A conceptual illustration of the Support Vector Machine. It finds a central decision boundary by maximizing the width of the "street" between the classes. The street's edges are the margin hyperplanes. The only data points that determine the final solution are the "support vectors" that lie exactly on these margins.</p>
+            </div>
+
+            <h5>Soft Margin Classification: Allowing for Imperfection</h5>
+            <p>The maximal margin classifier described above is often called the "hard margin" classifier. It assumes that the data is perfectly linearly separable. In most real-world scenarios, this is not the case. Datasets may contain noise or overlapping classes.</p>
+            <p>To handle this, we relax the constraints by introducing <strong>slack variables</strong>, $\xi_i \ge 0$, for each data point. This is the <strong>soft margin</strong> SVM. The slack variable $\xi_i$ is a "budget for being wrong"; it measures the degree to which point $i$ violates the margin.</p>
+            <ul>
+                <li>If $\xi_i = 0$, the point is on the correct side of the margin.</li>
+                <li>If $0 < \xi_i \le 1$, the point is inside the margin but still on the correct side of the decision boundary.</li>
+                <li>If $\xi_i > 1$, the point is on the wrong side of the decision boundary.</li>
+            </ul>
+            <p>The new optimization problem becomes a tradeoff between maximizing the margin and minimizing the amount of margin violation:</p>
+            $$ \begin{aligned}
+            & \min_{\mathbf{w}, b, \boldsymbol{\xi}} & & \frac{1}{2} ||\mathbf{w}||^2 + C \sum_{i=1}^N \xi_i \\
+            & \text{subject to} & & y_i(\mathbf{w}^T\mathbf{x}_i + b) \ge 1 - \xi_i, \quad \text{and} \quad \xi_i \ge 0, \quad \text{for } i=1, \dots, N
+            \end{aligned} $$
+            <p>The hyperparameter $C > 0$ is a regularization parameter that controls the <strong>bias-variance tradeoff</strong> for the SVM. It can be thought of as the "cost" of violating the margin，the "price" of each unit of slack.</p>
+
+            <blockquote>
+                <p><strong>Intuitive Analogy for C:</strong> Imagine you are designing a road (the margin) and there are trees (data points) on either side. A wide road is safer (low variance, good generalization). However, you have to pay a penalty for each tree you have to cut down (each data point you misclassify or allow inside the margin).</p>
+                <ul>
+                    <li>A <strong>small $C$</strong> means the penalty for cutting down trees is very low. You would happily cut down many trees to build a very wide, straight, simple road. This corresponds to a high-bias, low-variance model that prioritizes a simple, wide margin even if it misclassifies some points.</li>
+                    <li>A <strong>large $C$</strong> means the penalty is enormous. You will do everything you can to avoid cutting down trees. This will force you to build a very narrow, winding road that snakes around every single tree. This corresponds to a low-bias, high-variance model that tries to classify every training point correctly, leading to a complex boundary that may not generalize well.</li>
+                </ul>
+            </blockquote>
+            <h4>5.2 The Kernel Trick: Linear Methods in Non-Linear Worlds</h4>
+            <p>The SVM's most powerful feature is its ability to create highly non-linear decision boundaries using the <strong>kernel trick</strong>. The core idea is conceptually simple: what if our data is not linearly separable in its original space, but could become so if we projected it into a higher-dimensional space? </p>
+            <blockquote>
+            <p><strong>A Concrete Example:</strong> Imagine your data points are in two classes: a circle of "red" points inside a larger circle of "blue" points. In 2D space ($\mathbb{R}^2$), no straight line can separate them. However, what if we apply a non-linear mapping $\phi$ that lifts each point $\mathbf{x}=(x_1, x_2)$ into 3D space: $\phi(\mathbf{x}) = (x_1, x_2, x_1^2 + x_2^2)$. The term $x_1^2 + x_2^2$ is the squared distance from the origin. The "red" points, being in a smaller circle, will have a small value for this new third coordinate, while the "blue" points will have a large value. In this new 3D space, the points are now vertically separated and a simple plane (our linear classifier) can perfectly separate them!</p>
+            </blockquote>
+            <p>This is analogous to using <strong>Hilbert spaces</strong> in quantum mechanics. A complex physical state can be represented as a vector in an infinite-dimensional Hilbert space, where linear operators can describe its properties. The problem is that explicitly computing these high-dimensional mappings $\phi(\mathbf{x})$ can be computationally infeasible, especially if the new space is infinite-dimensional.</p>
+            <p>The "trick" lies in the mathematical formulation of the SVM solver. The final decision function for an SVM depends only on the <strong>inner products</strong> (dot products) of data points. If we apply our feature map $\phi$, the decision function would depend on the inner product in the new space: $\phi(\mathbf{x}_i) \cdot \phi(\mathbf{x}_j)$. A <strong>kernel function</strong>, $K(\mathbf{x}_i, \mathbf{x}_j)$, is a computationally efficient function that calculates this inner product directly from the original input vectors, without ever computing the mapping $\phi$ itself:</p>
+            $$ K(\mathbf{x}_i, \mathbf{x}_j) = \langle\phi(\mathbf{x}_i), \phi(\mathbf{x}_j)\rangle $$
+			<p>The problem is that explicitly computing these high-dimensional mappings $\phi(\mathbf{x})$ can be computationally infeasible. The "trick" is that the SVM algorithm, in its dual formulation, only ever needs to know the dot product between pairs of vectors, not the vectors themselves. A <strong>kernel function</strong>, $K(\mathbf{x}_i, \mathbf{x}_j)$, is a computationally cheap function that gives the dot product of the vectors in the high-dimensional space, without ever explicitly going there:</p>
+            <blockquote>
+                <p><strong>A Step-by-Step Mathematical Example of the Kernel Trick</strong></p>
+                <p>Let's make this concrete with the <strong>Polynomial Kernel</strong>. Consider two data points in 2D space, $\mathbf{a} = (a_1, a_2)$ and $\mathbf{b} = (b_1, b_2)$. Let's use a simple polynomial kernel of degree 2: $K(\mathbf{a}, \mathbf{b}) = (\mathbf{a} \cdot \mathbf{b})^2$.</p>
+                <p><strong>Step 1: Calculate the kernel (the easy way).</strong> This is computationally cheap:</p>
+                $$ K(\mathbf{a}, \mathbf{b}) = (a_1 b_1 + a_2 b_2)^2 = a_1^2 b_1^2 + 2a_1 b_1 a_2 b_2 + a_2^2 b_2^2 $$
+
+                <p><strong>Step 2: Define the explicit feature map $\phi$.</strong> This kernel corresponds to a specific mapping from 2D to a higher-dimensional space. Let's find out which one. The form of the result suggests a feature space containing squared terms and cross-products. Let's try the mapping $\phi: \mathbb{R}^2 \to \mathbb{R}^3$ defined as:</p>
+                $$ \phi(\mathbf{x}) = \phi((x_1, x_2)) = (x_1^2, \sqrt{2}x_1 x_2, x_2^2) $$
+                
+                <p><strong>Step 3: Calculate the dot product in the high-dimensional space (the hard way).</strong></p>
+                <p>First, we map our two points into this new 3D space:</p>
+                $$ \phi(\mathbf{a}) = (a_1^2, \sqrt{2}a_1 a_2, a_2^2) $$
+                $$ \phi(\mathbf{b}) = (b_1^2, \sqrt{2}b_1 b_2, b_2^2) $$
+                <p>Now, let's compute their dot product in this 3D space:</p>
+                $$ \phi(\mathbf{a}) \cdot \phi(\mathbf{b}) = (a_1^2)(b_1^2) + (\sqrt{2}a_1 a_2)(\sqrt{2}b_1 b_2) + (a_2^2)(b_2^2) $$
+                $$ = a_1^2 b_1^2 + 2a_1 a_2 b_1 b_2 + a_2^2 b_2^2 $$
+                
+                <p><strong>The Magic:</strong> Notice that the result from Step 1 is <em>exactly the same</em> as the result from Step 3! We were able to compute the dot product in a 3D feature space by performing a much simpler calculation in the original 2D space. This is the kernel trick in action. We get all the benefits of operating in the higher-dimensional space (where the data might be linearly separable) while only ever doing the cheap computation of the kernel function in the original, low-dimensional space.</p>
+            </blockquote>
+            <p>By simply replacing the standard dot product $\mathbf{x}_i \cdot \mathbf{x}_j$ in the algorithm with a chosen kernel function, we implicitly project the data into a new space and learn a linear separator there, which corresponds to a highly non-linear separator back in the original space. This is the kernel trick.</p>
+            
+            <div class="figure">
+                <div class="mermaid">
+                    graph TD
+                        subgraph "Standard Linear SVM"
+                            A["Input Data x_i, x_j in R^d"] --> B["Compute Inner Product<br>x_i^T x_j"];
+                            B --> C["Solve Dual Problem<br>using inner products"];
+                            C --> D["Linear Decision Boundary"];
+                        end
+
+                        subgraph "Kernelized SVM"
+                            E["Input Data x_i, x_j in R^d"] -- "Implicit Mapping φ(x)" --> F((Feature Space H));
+                            E --> G["Compute Kernel Function<br>K(x_i, x_j) = φ(x_i)^T φ(x_j)"];
+                            G --> H["Solve Dual Problem<br>using kernel values"];
+                            H --> I["Non-Linear Decision Boundary in R^d"];
+                            F -.->|Corresponds to Linear<br>Boundary in H| I;
+                        end
+                </div>
+                <p class="caption"><b>Figure 5.2:</b> The logic of the kernel trick. Instead of explicitly mapping data to a high-dimensional feature space (top path, which is computationally expensive), the kernel function allows us to compute the inner products in that space directly from the original data (bottom path). This lets us use the efficient machinery of a linear classifier to learn a non-linear boundary.</p>
+            </div>
+
+
+            <p>Common kernels include:</p>
+            <ul>
+                <li><strong>Linear Kernel</strong>: $K(\mathbf{x}_i, \mathbf{x}_j) = \mathbf{x}_i^T \mathbf{x}_j$. This is the standard dot product and results in a linear SVM.</li>
+                <li><strong>Polynomial Kernel</strong>: $K(\mathbf{x}_i, \mathbf{x}_j) = (\gamma \mathbf{x}_i^T \mathbf{x}_j + r)^d$. This implicitly maps the data into a feature space containing all polynomial combinations of the original features up to degree $d$, allowing the SVM to learn polynomial decision boundaries.</li>
+                <li><strong>Radial Basis Function (RBF) Kernel</strong>: $K(\mathbf{x}_i, \mathbf{x}_j) = \exp(-\gamma ||\mathbf{x}_i - \mathbf{x}_j||^2)$. This is the most popular kernel. It corresponds to an <em>infinite-dimensional</em> feature space. The RBF kernel essentially measures the similarity between two points, acting like a localized Gaussian "bump." A new point is classified based on a weighted sum of its similarity to the support vectors. The parameter $\gamma$ controls the "width" of the similarity function; a small $\gamma$ gives a broad similarity (smoother boundary, high bias), while a large $\gamma$ gives a narrow, spiky similarity (more complex boundary, high variance).</li>
+            </ul>
+            <p>The kernel trick is one of the most elegant ideas in machine learning. It allows us to use the machinery of linear models—with their convex optimization guarantees—to solve complex, non-linear problems by working in an abstract Hilbert space without paying the computational price of explicitly representing vectors there.</p>
+        </main>
+        
+        <hr>
+        
+        <nav class="navigation-links" style="display: flex; justify-content: space-between;">
+            <a href="ch4.html">← Chapter 4</a>
+            <a href="ch6.html">Chapter 6: Decision Trees and Ensemble Methods →</a>
+        </nav>
+    </div>
+
+</body>
+</html>
